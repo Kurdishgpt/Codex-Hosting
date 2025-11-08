@@ -180,10 +180,10 @@ app.post('/api/servers/create', async (req, res) => {
     
     if (runtime === 'nodejs' || runtime === 'bun') {
       defaultFile = 'index.js';
-      defaultContent = `console.log('Hello from ${name}!');\n\nconst http = require('http');\n\nconst server = http.createServer((req, res) => {\n  res.writeHead(200, {'Content-Type': 'text/plain'});\n  res.end('Server is running!\\n');\n});\n\nconst PORT = process.env.PORT || 3000;\nserver.listen(PORT, () => {\n  console.log(\`Server listening on port \${PORT}\`);\n});\n`;
+      defaultContent = `console.log('Hello from ${name}!');\nconsole.log('Server is ready! Upload your Discord bot files or other code to get started.');\nconsole.log('\\nTo run a Discord bot:');\nconsole.log('1. Upload your bot files');\nconsole.log('2. Add your DISCORD_BOT_TOKEN in Settings > Environment Variables');\nconsole.log('3. The bot will start automatically!\\n');\n`;
     } else if (runtime === 'python') {
       defaultFile = 'main.py';
-      defaultContent = `print('Hello from ${name}!')\n\nimport http.server\nimport socketserver\n\nPORT = 8000\n\nHandler = http.server.SimpleHTTPRequestHandler\n\nwith socketserver.TCPServer(("", PORT), Handler) as httpd:\n    print(f"Server running on port {PORT}")\n    httpd.serve_forever()\n`;
+      defaultContent = `print('Hello from ${name}!')\nprint('Server is ready! Upload your Python bot files or other code to get started.')\nprint('\\nTo run a Discord bot:')\nprint('1. Upload your bot files')\nprint('2. Add your DISCORD_BOT_TOKEN in Settings > Environment Variables')\nprint('3. The bot will start automatically!\\n')\n`;
     } else {
       defaultFile = 'README.txt';
       defaultContent = `Welcome to ${name}!\n\nThis is a ${runtime} server.\n\nAdd your files here to get started.`;
@@ -444,12 +444,77 @@ app.get('/api/env', (req, res) => {
 });
 
 // Set environment variable
-app.post('/api/env/set', (req, res) => {
+app.post('/api/env/set', async (req, res) => {
   try {
     const { serverId = 'default', key, value } = req.body;
     const envVars = environmentVariables.get(serverId) || {};
     envVars[key] = value;
     environmentVariables.set(serverId, envVars);
+    
+    // Auto-restart server if Discord bot token is set
+    const isDiscordToken = key.toLowerCase().includes('token') || key.toLowerCase().includes('bot');
+    if (isDiscordToken && value) {
+      // Get server info
+      const servers = loadServers();
+      const server = servers.find(s => s.id === serverId);
+      
+      if (server) {
+        // Stop if running
+        const childProcess = serverProcesses.get(serverId);
+        if (childProcess) {
+          childProcess.kill();
+          serverProcesses.delete(serverId);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        // Start server with new env vars
+        const serverPath = getServerPath(serverId);
+        const cmd = server.command.split(' ')[0];
+        const args = server.command.split(' ').slice(1);
+        
+        const newProcess = spawn(cmd, args, {
+          cwd: serverPath,
+          env: { ...process.env, ...envVars }
+        });
+
+        consoleOutputs.set(serverId, []);
+
+        newProcess.stdout.on('data', (data) => {
+          const output = data.toString();
+          const logs = consoleOutputs.get(serverId) || [];
+          logs.push({ type: 'stdout', message: output, timestamp: new Date() });
+          consoleOutputs.set(serverId, logs);
+          io.emit(`console:${serverId}`, { type: 'stdout', message: output });
+        });
+
+        newProcess.stderr.on('data', (data) => {
+          const output = data.toString();
+          const logs = consoleOutputs.get(serverId) || [];
+          logs.push({ type: 'stderr', message: output, timestamp: new Date() });
+          consoleOutputs.set(serverId, logs);
+          io.emit(`console:${serverId}`, { type: 'stderr', message: output });
+        });
+
+        newProcess.on('exit', (code) => {
+          const message = `Process exited with code ${code}`;
+          const logs = consoleOutputs.get(serverId) || [];
+          logs.push({ type: 'info', message, timestamp: new Date() });
+          consoleOutputs.set(serverId, logs);
+          io.emit(`console:${serverId}`, { type: 'info', message });
+          serverProcesses.delete(serverId);
+        });
+
+        serverProcesses.set(serverId, newProcess);
+        
+        res.json({ 
+          success: true, 
+          message: `Environment variable ${key} set successfully. Server auto-started with new configuration!`,
+          autoStarted: true
+        });
+        return;
+      }
+    }
+    
     res.json({ success: true, message: `Environment variable ${key} set successfully` });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

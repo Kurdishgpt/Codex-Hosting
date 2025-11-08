@@ -3,8 +3,7 @@ import { useState, useEffect } from 'react';
 import { Server, Trash2, Image, Edit3, RotateCcw, AlertTriangle, Key, Plus, X, Edit } from 'lucide-react';
 import ServerNav from '../components/ServerNav';
 import axios from 'axios';
-
-const API_URL = 'http://localhost:3001/api';
+import { API_URL } from '../config/api';
 
 interface EnvVariable {
   key: string;
@@ -12,6 +11,7 @@ interface EnvVariable {
 }
 
 const ServerSettings = () => {
+  const [serverId, setServerId] = useState<string>('default');
   const [envVars, setEnvVars] = useState<EnvVariable[]>([]);
   const [showAddEnvModal, setShowAddEnvModal] = useState(false);
   const [showEditEnvModal, setShowEditEnvModal] = useState(false);
@@ -21,13 +21,22 @@ const ServerSettings = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadEnvironmentVariables();
+    // Get server ID from URL
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id') || 'default';
+    setServerId(id);
   }, []);
+
+  useEffect(() => {
+    if (serverId) {
+      loadEnvironmentVariables();
+    }
+  }, [serverId]);
 
   const loadEnvironmentVariables = async () => {
     try {
       const response = await axios.get(`${API_URL}/env`, {
-        params: { serverId: 'default' }
+        params: { serverId }
       });
       const variables = Object.entries(response.data.variables).map(([key, value]) => ({
         key,
@@ -45,8 +54,8 @@ const ServerSettings = () => {
 
     try {
       setLoading(true);
-      await axios.post(`${API_URL}/env/set`, {
-        serverId: 'default',
+      const response = await axios.post(`${API_URL}/env/set`, {
+        serverId,
         key: newEnvKey,
         value: newEnvValue
       });
@@ -54,7 +63,12 @@ const ServerSettings = () => {
       setNewEnvKey('');
       setNewEnvValue('');
       await loadEnvironmentVariables();
-      alert('Environment variable added successfully!');
+      
+      if (response.data.autoStarted) {
+        alert('✅ Environment variable added and server automatically started with your bot token!');
+      } else {
+        alert('Environment variable added successfully!');
+      }
     } catch (error) {
       console.error('Error adding environment variable:', error);
       alert('Failed to add environment variable');
@@ -79,12 +93,12 @@ const ServerSettings = () => {
       // Delete old key if it changed
       if (newEnvKey !== editingEnv.key) {
         await axios.delete(`${API_URL}/env/delete`, {
-          data: { serverId: 'default', key: editingEnv.key }
+          data: { serverId, key: editingEnv.key }
         });
       }
       // Set new/updated value
-      await axios.post(`${API_URL}/env/set`, {
-        serverId: 'default',
+      const response = await axios.post(`${API_URL}/env/set`, {
+        serverId,
         key: newEnvKey,
         value: newEnvValue
       });
@@ -93,7 +107,12 @@ const ServerSettings = () => {
       setNewEnvKey('');
       setNewEnvValue('');
       await loadEnvironmentVariables();
-      alert('Environment variable updated successfully!');
+      
+      if (response.data.autoStarted) {
+        alert('✅ Environment variable updated and server automatically restarted with your bot token!');
+      } else {
+        alert('Environment variable updated successfully!');
+      }
     } catch (error) {
       console.error('Error updating environment variable:', error);
       alert('Failed to update environment variable');
@@ -107,7 +126,7 @@ const ServerSettings = () => {
 
     try {
       await axios.delete(`${API_URL}/env/delete`, {
-        data: { serverId: 'default', key }
+        data: { serverId, key }
       });
       await loadEnvironmentVariables();
       alert('Environment variable deleted successfully!');
