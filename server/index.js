@@ -514,22 +514,33 @@ app.get('/api/packages', (req, res) => {
 
 // Validate package name to prevent command injection
 const validatePackageName = (packageName) => {
-  // Allow npm package format including scoped packages: @scope/name, name, @scope/name@version
-  // Support spaces for multiple packages: "package1 package2"
-  // Prevent dangerous characters that could lead to command injection
-  const dangerousChars = /[;&|`$()><]/;
+  // Allow npm/pip package formats:
+  // - Scoped: @scope/name, @scope/name@version
+  // - Version specs: package@1.2.3, package@^4.0.0, package@~2.1.0
+  // - Python comparisons: package==2.0.0, package>=1.0.0, package<3.0.0
+  // - Extras: package[extra], package[extra1,extra2]
+  // - Complex: package@^4.0.0[voice], @scope/pkg@~1.2.3
+  // Prevent command injection by blocking dangerous characters: ; & | ` $ ( ) < > (except in version specs)
   
-  if (dangerousChars.test(packageName)) {
+  const trimmed = packageName.trim();
+  
+  // Block dangerous shell metacharacters that enable command injection
+  const dangerousChars = /[;&|`$\n\r]/;
+  if (dangerousChars.test(trimmed)) {
     throw new Error('Invalid package name: contains dangerous characters');
   }
   
-  // Additional length check to prevent abuse
-  if (packageName.length > 500) {
-    throw new Error('Package name is too long (max 500 characters)');
+  // Must start with letter, @, or number (no leading special chars except @)
+  if (!/^[@a-zA-Z0-9]/.test(trimmed)) {
+    throw new Error('Invalid package name: must start with letter, number, or @');
   }
   
-  // Trim whitespace
-  return packageName.trim();
+  // Additional length check to prevent abuse
+  if (trimmed.length > 300) {
+    throw new Error('Package name is too long (max 300 characters)');
+  }
+  
+  return trimmed;
 };
 
 // Add package to server
@@ -591,10 +602,46 @@ app.post('/api/packages/clear', (req, res) => {
   }
 });
 
-// Helper function to run a command and wait for completion
+// Helper function to run a command and wait for completion (legacy - uses shell)
 const runInstallCommand = (command, cwd, serverId) => {
   return new Promise((resolve, reject) => {
     const proc = spawn('bash', ['-c', command], { cwd });
+    
+    proc.stdout.on('data', (data) => {
+      const output = data.toString();
+      const logs = consoleOutputs.get(serverId) || [];
+      logs.push({ type: 'stdout', message: output, timestamp: new Date() });
+      consoleOutputs.set(serverId, logs);
+      io.emit(`console:${serverId}`, { type: 'stdout', message: output });
+    });
+    
+    proc.stderr.on('data', (data) => {
+      const output = data.toString();
+      const logs = consoleOutputs.get(serverId) || [];
+      logs.push({ type: 'stderr', message: output, timestamp: new Date() });
+      consoleOutputs.set(serverId, logs);
+      io.emit(`console:${serverId}`, { type: 'stderr', message: output });
+    });
+    
+    proc.on('exit', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Installation failed with exit code ${code}`));
+      }
+    });
+    
+    proc.on('error', (error) => {
+      reject(error);
+    });
+  });
+};
+
+// Safe helper function to run package manager commands with argument arrays (prevents injection)
+const runInstallCommandSafe = (command, args, cwd, serverId) => {
+  return new Promise((resolve, reject) => {
+    // Use spawn directly with argument array (no shell)
+    const proc = spawn(command, args, { cwd, shell: false });
     
     proc.stdout.on('data', (data) => {
       const output = data.toString();
@@ -686,21 +733,22 @@ const startServerWithSmartStartup = async (serverId, command, runtime, envVars =
       // Install additional packages if specified
       if (packages.length > 0) {
         // Validate all package names
-        packages.forEach(pkg => validatePackageName(pkg));
+        const validatedPackages = packages.map(pkg => validatePackageName(pkg));
         
-        const packagesStr = packages.join(' ');
+        const packagesStr = validatedPackages.join(' ');
         const installLog = `[CodeX] Installing packages: ${packagesStr}\n`;
         const logs = consoleOutputs.get(serverId) || [];
         logs.push({ type: 'info', message: installLog, timestamp: new Date() });
         consoleOutputs.set(serverId, logs);
         io.emit(`console:${serverId}`, { type: 'info', message: installLog });
         
-        await runInstallCommand(`${packageManager} install ${packagesStr}`, serverPath, serverId);
+        // Use safe argument array instead of string concatenation
+        await runInstallCommandSafe(packageManager, ['install', ...validatedPackages], serverPath, serverId);
       }
     } else if (runtime === 'python' && packages.length > 0) {
       // Python package installation
-      packages.forEach(pkg => validatePackageName(pkg));
-      const packagesStr = packages.join(' ');
+      const validatedPackages = packages.map(pkg => validatePackageName(pkg));
+      const packagesStr = validatedPackages.join(' ');
       
       const installLog = `[CodeX] Installing Python packages: ${packagesStr}\n`;
       const logs = consoleOutputs.get(serverId) || [];
@@ -708,7 +756,8 @@ const startServerWithSmartStartup = async (serverId, command, runtime, envVars =
       consoleOutputs.set(serverId, logs);
       io.emit(`console:${serverId}`, { type: 'info', message: installLog });
       
-      await runInstallCommand(`pip install ${packagesStr}`, serverPath, serverId);
+      // Use safe argument array instead of string concatenation
+      await runInstallCommandSafe('pip', ['install', ...validatedPackages], serverPath, serverId);
     }
     
     // Installations completed successfully - now start the actual command

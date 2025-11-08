@@ -5,13 +5,8 @@ export const getApiBase = (): string => {
     return envUrl.replace(/\/$/, '');
   }
   
-  // In development mode, use relative URLs (proxy handles routing)
-  if (import.meta.env.DEV) {
-    return '';
-  }
-  
-  // In production, try to use the backend from same origin
-  // User should set VITE_API_BASE_URL for different domains
+  // Always use relative URLs - Vite proxy will handle routing in dev
+  // In production, API should be on same origin
   return '';
 };
 
