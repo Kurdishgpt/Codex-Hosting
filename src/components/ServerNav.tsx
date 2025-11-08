@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Terminal, BarChart3, Settings, Rocket, FolderOpen, Edit } from 'lucide-react';
+import { Terminal, BarChart3, Settings, FolderOpen, Edit } from 'lucide-react';
 
 const ServerNav = () => {
   const location = useLocation();
@@ -8,8 +8,7 @@ const ServerNav = () => {
     { name: 'Console', path: '/server/console', icon: Terminal },
     { name: 'Analytics', path: '/server/analytics', icon: BarChart3 },
     { name: 'Files', path: '/server/files', icon: FolderOpen },
-    { name: 'Startup', path: '/server/startup', icon: Rocket },
-    { name: 'Settings', path: '/server/settings', icon: Settings },
+    { name: 'Settings', path: '/server/startup', icon: Settings },
     { name: 'Edit', path: '/server/edit', icon: Edit },
   ];
 
