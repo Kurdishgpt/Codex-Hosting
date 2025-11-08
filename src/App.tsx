@@ -23,6 +23,8 @@ import Support from './pages/support';
 import TOS from './pages/tos';
 import PrivacyPolicy from './pages/privacy';
 import StatusPage from './pages/status';
+import Dashboard from './pages/dashboard';
+import AccountSettings from './pages/account';
 
 // Komponen untuk scroll ke atas saat ganti halaman
 const ScrollToTop = () => {
@@ -57,6 +59,10 @@ function App() {
           <Routes>
             {/* Rute Halaman Utama */}
             <Route path="/" element={<Home />} />
+
+            {/* Rute Dashboard & Account */}
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/account" element={<AccountSettings />} />
 
             {/* Rute Halaman Layanan */}
             <Route path="/discord" element={<DiscordPricing />} />
