@@ -21,9 +21,20 @@ const serverTypes: ServerType[] = [
     icon: '⬢',
     category: 'runtime',
     versions: [
+      { value: '25', label: 'Node.js 25 (Current)' },
+      { value: '24', label: 'Node.js 24 LTS (Krypton)' },
+      { value: '23', label: 'Node.js 23' },
+      { value: '22', label: 'Node.js 22 LTS (Jod)' },
+      { value: '21', label: 'Node.js 21' },
       { value: '20', label: 'Node.js 20 LTS (Recommended)' },
+      { value: '19', label: 'Node.js 19' },
       { value: '18', label: 'Node.js 18 LTS' },
+      { value: '17', label: 'Node.js 17' },
       { value: '16', label: 'Node.js 16' },
+      { value: '15', label: 'Node.js 15' },
+      { value: '14', label: 'Node.js 14' },
+      { value: '13', label: 'Node.js 13' },
+      { value: '12', label: 'Node.js 12' },
     ]
   },
   {
