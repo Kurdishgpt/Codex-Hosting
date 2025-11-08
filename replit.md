@@ -22,6 +22,8 @@ CodeX Hosting is a modern web application built with React and TypeScript that p
 - **Env Vars Display**: Added environment variables panel to console with toggle button showing all configured variables
 - **Better Console UX**: Console commands now automatically have access to server environment variables
 - **Settings Integration**: Added link from console to settings page for managing environment variables
+- **Consolidated Settings Page**: Merged server-settings.tsx into server-startup.tsx creating one comprehensive settings page with startup command, environment variables, server information, server details, background customization, reinstall, and delete server options
+- **Navigation Update**: Settings button now opens the unified settings page (/server/startup) and separate Startup nav item removed for cleaner navigation
 
 ## User Preferences
 
