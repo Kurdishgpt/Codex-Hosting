@@ -68,14 +68,22 @@ const getServerPath = (serverId = 'default') => {
 
 // Validate and sanitize file paths to prevent directory traversal
 const sanitizePath = (serverPath, userPath) => {
+  // Normalize userPath to remove leading slashes and dots
+  let normalizedUserPath = userPath.replace(/^[\/\\]+/, '').replace(/^\.+/, '');
+  
+  // If normalized path is empty, use current directory
+  if (!normalizedUserPath) {
+    normalizedUserPath = '.';
+  }
+  
   // Resolve the full path
-  const resolved = path.resolve(serverPath, userPath);
+  const resolved = path.resolve(serverPath, normalizedUserPath);
   
   // Ensure serverPath has a trailing separator for accurate comparison
   const normalizedServerPath = serverPath.endsWith(path.sep) ? serverPath : serverPath + path.sep;
   
   // Ensure the resolved path is within the server directory
-  if (!resolved.startsWith(normalizedServerPath) && resolved !== serverPath.replace(/[\/\\]$/, '')) {
+  if (!resolved.startsWith(normalizedServerPath) && resolved !== serverPath) {
     throw new Error('Invalid path: directory traversal detected');
   }
   
