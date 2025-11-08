@@ -1,0 +1,15 @@
+[
+  {
+    "id": "test-server",
+    "name": "test-server",
+    "runtime": "nodejs",
+    "command": "node index.js",
+    "description": "test",
+    "cpu": "50%",
+    "memory": "512 MB",
+    "disk": "1 GB",
+    "location": "United States",
+    "status": "stopped",
+    "createdAt": "2025-11-08T13:50:45.497Z"
+  }
+]
