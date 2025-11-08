@@ -17,7 +17,7 @@ const nodeVersions = [
   { id: 'nodejs-16', name: 'nodejs 16', image: 'nodejs:16' },
 ];
 
-const defaultStartupCommand = `if [[ -d .git ]] && [[ $(> -l *) ]]; then git pull; fi; if [[ -f \${NODE_PACKAGES} ]]; then /usr/local/bin/npm install \${NODE_PACKAGES}; fi; if [[ -f /home/container/package.json ]]; then /usr/local/bin/npm install; fi; /usr/local/bin/node /home/container/index.js`;
+const defaultStartupCommand = `node index.js`;
 
 export default function ServerSettings() {
   const { serverId: routeServerId } = useParams();
