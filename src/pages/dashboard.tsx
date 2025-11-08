@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Server, DollarSign, Database, HardDrive, Users, BookOpen, MessageCircle, Plus, ShoppingCart, Coins } from 'lucide-react';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 const Dashboard = () => {
   const [hasServers] = useState(false);
@@ -67,22 +68,24 @@ const Dashboard = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {/* Create Server */}
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              className="bg-gray-800/50 backdrop-blur-md border border-gray-700 rounded-xl p-6 cursor-pointer hover:border-blue-500 transition-all"
-            >
-              <div className="flex flex-col items-center text-center">
-                <div className="w-16 h-16 bg-blue-600/20 rounded-lg flex items-center justify-center mb-4">
-                  <Server className="w-8 h-8 text-blue-400" />
+            <Link to="/server/console">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                className="bg-gray-800/50 backdrop-blur-md border border-gray-700 rounded-xl p-6 cursor-pointer hover:border-blue-500 transition-all"
+              >
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-16 h-16 bg-blue-600/20 rounded-lg flex items-center justify-center mb-4">
+                    <Server className="w-8 h-8 text-blue-400" />
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">Create Server</h3>
+                  <p className="text-gray-400 mb-4 text-sm">Deploy a new server with your preferred configuration and resources</p>
+                  <button className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2">
+                    <Plus size={20} />
+                    Create Now
+                  </button>
                 </div>
-                <h3 className="text-xl font-bold mb-2">Create Server</h3>
-                <p className="text-gray-400 mb-4 text-sm">Deploy a new server with your preferred configuration and resources</p>
-                <button className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2">
-                  <Plus size={20} />
-                  Create Now
-                </button>
-              </div>
-            </motion.div>
+              </motion.div>
+            </Link>
 
             {/* Buy Resources */}
             <motion.div
