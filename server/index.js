@@ -49,6 +49,7 @@ const upload = multer({ storage });
 const serverProcesses = new Map();
 const consoleOutputs = new Map();
 const environmentVariables = new Map();
+const serverPackages = new Map();
 
 // Validate serverId to prevent directory traversal
 const validateServerId = (serverId) => {
@@ -534,10 +535,75 @@ app.delete('/api/env/delete', (req, res) => {
   }
 });
 
+// Package Management Endpoints
+
+// Get packages for a server
+app.get('/api/packages', (req, res) => {
+  try {
+    const { serverId = 'default' } = req.query;
+    const packages = serverPackages.get(serverId) || [];
+    res.json({ success: true, packages });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Add package to server
+app.post('/api/packages/add', (req, res) => {
+  try {
+    const { serverId = 'default', packageName } = req.body;
+    
+    if (!packageName) {
+      return res.status(400).json({ success: false, error: 'Package name is required' });
+    }
+
+    const packages = serverPackages.get(serverId) || [];
+    
+    // Check if package already exists
+    if (packages.includes(packageName)) {
+      return res.status(400).json({ success: false, error: 'Package already added' });
+    }
+
+    packages.push(packageName);
+    serverPackages.set(serverId, packages);
+    
+    res.json({ success: true, message: `Package ${packageName} added successfully`, packages });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Remove package from server
+app.delete('/api/packages/remove', (req, res) => {
+  try {
+    const { serverId = 'default', packageName } = req.body;
+    
+    const packages = serverPackages.get(serverId) || [];
+    const filtered = packages.filter(p => p !== packageName);
+    
+    serverPackages.set(serverId, filtered);
+    
+    res.json({ success: true, message: `Package ${packageName} removed`, packages: filtered });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Clear all packages
+app.post('/api/packages/clear', (req, res) => {
+  try {
+    const { serverId = 'default' } = req.body;
+    serverPackages.set(serverId, []);
+    res.json({ success: true, message: 'All packages cleared' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Server Control Endpoints
 
 // Start server
-app.post('/api/server/start', (req, res) => {
+app.post('/api/server/start', async (req, res) => {
   try {
     const { serverId = 'default', command = 'node index.js', runtime = 'nodejs' } = req.body;
     
@@ -547,20 +613,79 @@ app.post('/api/server/start', (req, res) => {
 
     const serverPath = getServerPath(serverId);
     const envVars = environmentVariables.get(serverId) || {};
+    const packages = serverPackages.get(serverId) || [];
     
-    // Determine the command to run based on runtime
-    let cmd, args;
-    const commandParts = command.split(' ');
-    cmd = commandParts[0];
-    args = commandParts.slice(1);
-
-    const childProcess = spawn(cmd, args, {
+    // Initialize console output
+    consoleOutputs.set(serverId, []);
+    
+    // Log startup
+    const startupLog = `[CodeX] Starting server...\n`;
+    const logs = consoleOutputs.get(serverId) || [];
+    logs.push({ type: 'info', message: startupLog, timestamp: new Date() });
+    consoleOutputs.set(serverId, logs);
+    io.emit(`console:${serverId}`, { type: 'info', message: startupLog });
+    
+    // Build smart startup command based on runtime
+    let startupCommand = '';
+    
+    if (runtime === 'nodejs' || runtime === 'bun') {
+      // Check if package.json exists, create if needed
+      const packageJsonPath = path.join(serverPath, 'package.json');
+      let needsPackageJson = !await fs.pathExists(packageJsonPath);
+      
+      if (needsPackageJson) {
+        // Create basic package.json
+        const packageJson = {
+          name: serverId,
+          version: "1.0.0",
+          type: "module",
+          description: "Server managed by CodeX Hosting",
+          main: "index.js",
+          dependencies: {}
+        };
+        await fs.writeJSON(packageJsonPath, packageJson, { spaces: 2 });
+        
+        const pkgLog = `[CodeX] Created package.json\n`;
+        const logs = consoleOutputs.get(serverId) || [];
+        logs.push({ type: 'info', message: pkgLog, timestamp: new Date() });
+        consoleOutputs.set(serverId, logs);
+        io.emit(`console:${serverId}`, { type: 'info', message: pkgLog });
+      }
+      
+      // Build startup command with package installation
+      const packageManager = runtime === 'bun' ? 'bun' : 'npm';
+      const installCmd = runtime === 'bun' ? 'bun install' : 'npm install';
+      
+      if (packages.length > 0) {
+        const packagesStr = packages.join(' ');
+        startupCommand = `if [ ! -d "node_modules" ]; then ${installCmd}; fi; ${packageManager} install ${packagesStr}; ${command}`;
+        
+        const installLog = `[CodeX] Installing packages: ${packagesStr}\n`;
+        const logs = consoleOutputs.get(serverId) || [];
+        logs.push({ type: 'info', message: installLog, timestamp: new Date() });
+        consoleOutputs.set(serverId, logs);
+        io.emit(`console:${serverId}`, { type: 'info', message: installLog });
+      } else {
+        startupCommand = `if [ ! -d "node_modules" ]; then ${installCmd}; fi; ${command}`;
+      }
+    } else if (runtime === 'python') {
+      // Python package installation
+      if (packages.length > 0) {
+        const packagesStr = packages.join(' ');
+        startupCommand = `pip install ${packagesStr}; ${command}`;
+      } else {
+        startupCommand = command;
+      }
+    } else {
+      // Other runtimes - just run the command
+      startupCommand = command;
+    }
+    
+    // Execute the startup command using bash
+    const childProcess = spawn('bash', ['-c', startupCommand], {
       cwd: serverPath,
       env: { ...process.env, ...envVars }
     });
-
-    // Initialize console output
-    consoleOutputs.set(serverId, []);
 
     childProcess.stdout.on('data', (data) => {
       const output = data.toString();
@@ -579,7 +704,7 @@ app.post('/api/server/start', (req, res) => {
     });
 
     childProcess.on('exit', (code) => {
-      const message = `Process exited with code ${code}`;
+      const message = `[CodeX] Process exited with code ${code}\n`;
       const logs = consoleOutputs.get(serverId) || [];
       logs.push({ type: 'info', message, timestamp: new Date() });
       consoleOutputs.set(serverId, logs);
