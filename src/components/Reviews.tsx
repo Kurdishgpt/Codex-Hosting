@@ -40,7 +40,7 @@ const Reviews = () => {
   return (
     <section id="reviews" className="py-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
       {/* Tambahkan style JSX untuk animasi marquee */}
-      <style jsx>{`
+      <style>{`
         .scroller-container {
           overflow: hidden;
           -webkit-mask-image: linear-gradient(to right, transparent, white 20%, white 80%, transparent);

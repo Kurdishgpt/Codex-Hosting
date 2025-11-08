@@ -63,13 +63,51 @@ Given the technology stack and included assets, codex is likely a project target
     npm install
     ```
 
-5.  **Start the development server**:
+5.  **Start the backend server** (in a separate terminal):
+
+    ```bash
+    cd server
+    npm install
+    npm start
+    ```
+
+6.  **Start the development server**:
 
     ```bash
     npm run dev
     ```
 
-    This will typically start the application on `http://localhost:5173/` or a similar address.  Check the console output for the exact address.
+    The frontend will run on `http://localhost:5000/` with the backend API on port 3001.
+
+## Configuration ⚙️
+
+### Environment Variables
+
+The application uses environment variables for configuration. These are optional in development but may be needed for production deployments:
+
+#### Frontend (Vite)
+
+- `VITE_API_BASE_URL` - Base URL for the backend API (optional in development, uses proxy)
+- `VITE_SOCKET_BASE_URL` - Base URL for Socket.IO connection (optional in development, uses proxy)
+
+**Development (Replit/Local)**:
+- No environment variables needed - the Vite proxy automatically forwards `/api` and `/socket.io` requests to the backend on `localhost:3001`
+
+**Production (Separate Deployment)**:
+- Set `VITE_API_BASE_URL=https://your-backend-domain.com` if the backend is on a different domain
+- Set `VITE_SOCKET_BASE_URL=https://your-backend-domain.com` for WebSocket connections
+
+#### Backend
+
+The backend runs on port 3001 by default. No additional configuration is required.
+
+### API Proxy Configuration
+
+In development, Vite is configured to proxy API requests:
+- `/api/*` → `http://localhost:3001/api/*`
+- `/socket.io/*` → `http://localhost:3001/socket.io/*` (with WebSocket support)
+
+This allows the frontend and backend to work together seamlessly without CORS issues.
 
 ## How to Contribute 🤝
 

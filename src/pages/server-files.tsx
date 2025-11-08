@@ -3,8 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Folder, File, Upload, FolderPlus, FileText, Trash2, X, Move } from 'lucide-react';
 import ServerNav from '../components/ServerNav';
 import axios from 'axios';
-
-const API_URL = 'http://localhost:3001/api';
+import { API_URL } from '../config/api';
 
 interface FileItem {
   name: string;

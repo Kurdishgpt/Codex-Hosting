@@ -1,18 +1,22 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
-import { Server, Wifi, Cpu, Database, HardDrive, Clock, PlayCircle, RotateCcw, StopCircle, Terminal, X } from 'lucide-react';
+import { Server, Wifi, Cpu, Database, HardDrive, Clock, PlayCircle, RotateCcw, StopCircle, Terminal, X, Save } from 'lucide-react';
 import ServerNav from '../components/ServerNav';
 import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
-
-const API_URL = 'http://localhost:3001/api';
-const SOCKET_URL = 'http://localhost:3001';
+import { API_URL, SOCKET_URL } from '../config/api';
 
 interface ConsoleLog {
   type: 'stdout' | 'stderr' | 'info' | 'clear';
   message?: string;
   timestamp?: Date;
   logs?: ConsoleLog[];
+}
+
+interface ServerConfig {
+  name: string;
+  command: string;
+  runtime: string;
 }
 
 const ServerConsole = () => {
@@ -24,9 +28,21 @@ const ServerConsole = () => {
   const [cpuUsage] = useState(0.19);
   const [memoryUsage] = useState({ used: 107.96, total: 512 });
   const [diskUsage] = useState({ used: 347.28, total: 1024 });
+  const [serverConfig, setServerConfig] = useState<ServerConfig>({
+    name: 'My Server',
+    command: 'node index.js',
+    runtime: 'nodejs'
+  });
   const consoleRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const startTimeRef = useRef<Date | null>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('serverConfig');
+    if (saved) {
+      setServerConfig(JSON.parse(saved));
+    }
+  }, []);
 
   useEffect(() => {
     // Connect to WebSocket
@@ -97,13 +113,18 @@ const ServerConsole = () => {
     }
   };
 
+  const handleSaveServer = () => {
+    localStorage.setItem('serverConfig', JSON.stringify(serverConfig));
+    alert('Server configuration saved successfully!');
+  };
+
   const handleStartServer = async () => {
     try {
       setLoading(true);
       await axios.post(`${API_URL}/server/start`, {
         serverId: 'default',
-        command: 'node index.js',
-        runtime: 'nodejs'
+        command: serverConfig.command,
+        runtime: serverConfig.runtime
       });
       setServerStatus('running');
       startTimeRef.current = new Date();
@@ -138,8 +159,8 @@ const ServerConsole = () => {
       setLoading(true);
       await axios.post(`${API_URL}/server/restart`, {
         serverId: 'default',
-        command: 'node index.js',
-        runtime: 'nodejs'
+        command: serverConfig.command,
+        runtime: serverConfig.runtime
       });
       setServerStatus('running');
       startTimeRef.current = new Date();
@@ -187,15 +208,16 @@ const ServerConsole = () => {
       <div className="container mx-auto px-4 py-8">
         
         <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-2">My Server</h1>
+          <h1 className="text-3xl font-bold mb-2">{serverConfig.name}</h1>
           <p className="text-gray-400">CodeX Hosting - Real 24/7 Server Management</p>
-          <div className="mt-2">
+          <div className="mt-2 flex items-center gap-3">
             <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
               serverStatus === 'running' ? 'bg-green-600/20 text-green-400' : 'bg-gray-600/20 text-gray-400'
             }`}>
               <span className={`w-2 h-2 rounded-full ${serverStatus === 'running' ? 'bg-green-400' : 'bg-gray-400'}`}></span>
               {serverStatus === 'running' ? 'Running' : 'Stopped'}
             </span>
+            <span className="text-sm text-gray-500">Command: {serverConfig.command}</span>
           </div>
         </div>
 
@@ -230,6 +252,13 @@ const ServerConsole = () => {
           >
             <X size={18} />
             Clear Console
+          </button>
+          <button 
+            onClick={handleSaveServer}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+          >
+            <Save size={18} />
+            Save Server
           </button>
         </div>
 
