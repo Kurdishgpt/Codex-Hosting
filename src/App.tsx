@@ -31,6 +31,7 @@ import ServerSettings from './pages/server-settings';
 import ServerStartup from './pages/server-startup';
 import ServerFiles from './pages/server-files';
 import ServerEdit from './pages/server-edit';
+import CreateServer from './pages/create-server';
 
 // Komponen untuk scroll ke atas saat ganti halaman
 const ScrollToTop = () => {
@@ -69,6 +70,9 @@ function App() {
             {/* Rute Dashboard & Account */}
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/account" element={<AccountSettings />} />
+
+            {/* Rute Create Server */}
+            <Route path="/create-server" element={<CreateServer />} />
 
             {/* Rute Server Management */}
             <Route path="/server/console" element={<ServerConsole />} />

@@ -68,7 +68,7 @@ const Dashboard = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {/* Create Server */}
-            <Link to="/server/console">
+            <Link to="/create-server">
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 className="bg-gray-800/50 backdrop-blur-md border border-gray-700 rounded-xl p-6 cursor-pointer hover:border-blue-500 transition-all"
