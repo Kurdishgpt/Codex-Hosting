@@ -1,10 +1,42 @@
 import { motion } from 'framer-motion';
-import { Server, DollarSign, Database, HardDrive, Users, BookOpen, MessageCircle, Plus, ShoppingCart, Coins } from 'lucide-react';
-import { useState } from 'react';
+import { Server, DollarSign, Database, HardDrive, Users, BookOpen, MessageCircle, Plus, ShoppingCart, Coins, Play, Settings } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
+interface ServerData {
+  id: string;
+  name: string;
+  runtime: string;
+  status: string;
+  createdAt: string;
+  cpu: string;
+  memory: string;
+  disk: string;
+}
+
 const Dashboard = () => {
-  const [hasServers] = useState(false);
+  const [servers, setServers] = useState<ServerData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadServers();
+  }, []);
+
+  const loadServers = async () => {
+    try {
+      const response = await fetch('/api/servers');
+      const data = await response.json();
+      if (data.success) {
+        setServers(data.servers);
+      }
+    } catch (error) {
+      console.error('Error loading servers:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const hasServers = servers.length > 0;
 
   const stats = [
     { label: 'Servers', value: '3', icon: Server },
@@ -131,7 +163,11 @@ const Dashboard = () => {
         >
           <h2 className="text-2xl font-bold mb-6">Your Servers</h2>
           
-          {!hasServers ? (
+          {loading ? (
+            <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700 rounded-xl p-12 text-center">
+              <p className="text-gray-400">Loading servers...</p>
+            </div>
+          ) : !hasServers ? (
             <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700 rounded-xl p-12 text-center">
               <Server className="w-16 h-16 text-gray-500 mx-auto mb-4" />
               <h3 className="text-xl font-semibold mb-2">You don't have any servers yet</h3>
@@ -161,7 +197,65 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Server cards would go here when user has servers */}
+              {servers.map((server, index) => (
+                <motion.div
+                  key={server.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="bg-gray-800/50 backdrop-blur-md border border-gray-700 rounded-xl p-6 hover:border-blue-500 transition-all"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center">
+                        <Server className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold">{server.name}</h3>
+                        <p className="text-sm text-gray-400">{server.runtime}</p>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      server.status === 'running' 
+                        ? 'bg-green-600/20 text-green-400' 
+                        : 'bg-gray-600/20 text-gray-400'
+                    }`}>
+                      {server.status}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 mb-4 text-sm text-gray-400">
+                    <div className="flex justify-between">
+                      <span>CPU:</span>
+                      <span>{server.cpu}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Memory:</span>
+                      <span>{server.memory}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Disk:</span>
+                      <span>{server.disk}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Link 
+                      to={`/server/console?id=${server.id}`}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-center flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <Play size={16} />
+                      Console
+                    </Link>
+                    <Link 
+                      to={`/server/settings?id=${server.id}`}
+                      className="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg flex items-center justify-center transition-colors"
+                    >
+                      <Settings size={16} />
+                    </Link>
+                  </div>
+                </motion.div>
+              ))}
             </div>
           )}
         </motion.div>

@@ -33,14 +33,37 @@ const ServerConsole = () => {
     command: 'node index.js',
     runtime: 'nodejs'
   });
+  const [serverId, setServerId] = useState<string>('default');
   const consoleRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const startTimeRef = useRef<Date | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('serverConfig');
-    if (saved) {
-      setServerConfig(JSON.parse(saved));
+    // Get server ID from URL
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id') || 'default';
+    setServerId(id);
+
+    // Load server data from API
+    if (id !== 'default') {
+      fetch(`/api/servers/${id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setServerConfig({
+              name: data.server.name,
+              command: data.server.command,
+              runtime: data.server.runtime
+            });
+          }
+        })
+        .catch(error => console.error('Error loading server:', error));
+    } else {
+      // For default server, check localStorage
+      const saved = localStorage.getItem('serverConfig');
+      if (saved) {
+        setServerConfig(JSON.parse(saved));
+      }
     }
   }, []);
 
@@ -50,10 +73,10 @@ const ServerConsole = () => {
 
     socketRef.current.on('connect', () => {
       console.log('Connected to console server');
-      socketRef.current?.emit('subscribe', 'default');
+      socketRef.current?.emit('subscribe', serverId);
     });
 
-    socketRef.current.on('console:default', (data: any) => {
+    socketRef.current.on(`console:${serverId}`, (data: any) => {
       if (data.type === 'clear') {
         setConsoleOutput([]);
       } else if (data.type === 'history' && data.logs) {
@@ -69,7 +92,7 @@ const ServerConsole = () => {
     return () => {
       socketRef.current?.disconnect();
     };
-  }, []);
+  }, [serverId]);
 
   useEffect(() => {
     // Auto-scroll to bottom when new messages arrive
@@ -99,7 +122,7 @@ const ServerConsole = () => {
   const loadServerStatus = async () => {
     try {
       const response = await axios.get(`${API_URL}/server/status`, {
-        params: { serverId: 'default' }
+        params: { serverId }
       });
       setServerStatus(response.data.status);
       if (response.data.logs) {
@@ -122,7 +145,7 @@ const ServerConsole = () => {
     try {
       setLoading(true);
       await axios.post(`${API_URL}/server/start`, {
-        serverId: 'default',
+        serverId,
         command: serverConfig.command,
         runtime: serverConfig.runtime
       });
@@ -141,7 +164,7 @@ const ServerConsole = () => {
     try {
       setLoading(true);
       await axios.post(`${API_URL}/server/stop`, {
-        serverId: 'default'
+        serverId
       });
       setServerStatus('stopped');
       startTimeRef.current = null;
@@ -158,7 +181,7 @@ const ServerConsole = () => {
     try {
       setLoading(true);
       await axios.post(`${API_URL}/server/restart`, {
-        serverId: 'default',
+        serverId,
         command: serverConfig.command,
         runtime: serverConfig.runtime
       });
@@ -176,7 +199,7 @@ const ServerConsole = () => {
   const handleClearConsole = async () => {
     try {
       await axios.post(`${API_URL}/console/clear`, {
-        serverId: 'default'
+        serverId
       });
       setConsoleOutput([]);
     } catch (error) {
@@ -190,7 +213,7 @@ const ServerConsole = () => {
 
     try {
       await axios.post(`${API_URL}/console/command`, {
-        serverId: 'default',
+        serverId,
         command: commandInput
       });
       setCommandInput('');

@@ -95,18 +95,55 @@ const CreateServer = () => {
   const navigate = useNavigate();
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [serverName, setServerName] = useState('');
+  const [serverDescription, setServerDescription] = useState('');
+  const [cpu, setCpu] = useState('50%');
+  const [memory, setMemory] = useState('512 MB');
+  const [disk, setDisk] = useState('1 GB');
+  const [location, setLocation] = useState('United States');
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
 
   const handleSelectType = (typeId: string) => {
     setSelectedType(typeId);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1 && selectedType) {
       setStep(2);
     } else if (step === 2 && serverName) {
-      // Create server and redirect to console
-      navigate('/server/console');
+      // Create server via API
+      try {
+        setLoading(true);
+        const selectedServerType = serverTypes.find(t => t.id === selectedType);
+        
+        const response = await fetch('/api/servers/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: serverName,
+            runtime: selectedType,
+            description: serverDescription,
+            cpu,
+            memory,
+            disk,
+            location
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          alert(`Server "${serverName}" created successfully!`);
+          navigate('/dashboard');
+        } else {
+          alert(`Error: ${data.error}`);
+        }
+      } catch (error) {
+        console.error('Error creating server:', error);
+        alert('Failed to create server. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -279,6 +316,8 @@ const CreateServer = () => {
                 <div>
                   <label className="block text-sm font-semibold mb-2">Server Description</label>
                   <textarea
+                    value={serverDescription}
+                    onChange={(e) => setServerDescription(e.target.value)}
                     placeholder="What's this server for?"
                     className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none h-24"
                   />
@@ -287,7 +326,11 @@ const CreateServer = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold mb-2">CPU Allocation</label>
-                    <select className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+                    <select 
+                      value={cpu}
+                      onChange={(e) => setCpu(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none"
+                    >
                       <option>50% (Free)</option>
                       <option>100% (1 Credit/month)</option>
                       <option>200% (2 Credits/month)</option>
@@ -295,7 +338,11 @@ const CreateServer = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold mb-2">Memory</label>
-                    <select className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+                    <select 
+                      value={memory}
+                      onChange={(e) => setMemory(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none"
+                    >
                       <option>512 MB (Free)</option>
                       <option>1 GB (1 Credit/month)</option>
                       <option>2 GB (2 Credits/month)</option>
@@ -307,7 +354,11 @@ const CreateServer = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold mb-2">Disk Space</label>
-                    <select className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+                    <select 
+                      value={disk}
+                      onChange={(e) => setDisk(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none"
+                    >
                       <option>1 GB (Free)</option>
                       <option>5 GB (1 Credit/month)</option>
                       <option>10 GB (2 Credits/month)</option>
@@ -315,7 +366,11 @@ const CreateServer = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-semibold mb-2">Server Location</label>
-                    <select className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none">
+                    <select 
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none"
+                    >
                       <option>🇺🇸 United States</option>
                       <option>🇳🇱 Netherlands</option>
                       <option>🇩🇪 Germany</option>
@@ -347,15 +402,15 @@ const CreateServer = () => {
               </button>
               <button
                 onClick={handleNext}
-                disabled={!serverName}
+                disabled={!serverName || loading}
                 className={`px-8 py-3 rounded-lg font-semibold transition-all flex items-center gap-2 ${
-                  serverName
+                  serverName && !loading
                     ? 'bg-green-600 hover:bg-green-700 text-white'
                     : 'bg-gray-700 text-gray-500 cursor-not-allowed'
                 }`}
               >
                 <Server size={20} />
-                Create Server
+                {loading ? 'Creating...' : 'Create Server'}
               </button>
             </div>
           </motion.div>

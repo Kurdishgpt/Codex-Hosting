@@ -93,6 +93,178 @@ const sanitizePath = (serverPath, userPath) => {
 // Initialize default server
 fs.ensureDirSync(getServerPath());
 
+// Server storage file
+const serversDataFile = path.join(__dirname, 'servers.json');
+
+// Load servers from file
+const loadServers = () => {
+  try {
+    if (fs.existsSync(serversDataFile)) {
+      const data = fs.readFileSync(serversDataFile, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error('Error loading servers:', error);
+  }
+  return [];
+};
+
+// Save servers to file
+const saveServers = (servers) => {
+  try {
+    fs.writeFileSync(serversDataFile, JSON.stringify(servers, null, 2));
+  } catch (error) {
+    console.error('Error saving servers:', error);
+  }
+};
+
+// Server Management Endpoints
+
+// Create a new server
+app.post('/api/servers/create', async (req, res) => {
+  try {
+    const { name, runtime, command, description, cpu, memory, disk, location } = req.body;
+    
+    if (!name || !runtime) {
+      return res.status(400).json({ success: false, error: 'Name and runtime are required' });
+    }
+
+    const serverId = name.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    validateServerId(serverId);
+
+    const servers = loadServers();
+    
+    // Check if server already exists
+    if (servers.find(s => s.id === serverId)) {
+      return res.status(400).json({ success: false, error: 'Server with this name already exists' });
+    }
+
+    const server = {
+      id: serverId,
+      name,
+      runtime,
+      command: command || `node index.js`,
+      description: description || '',
+      cpu: cpu || '50%',
+      memory: memory || '512 MB',
+      disk: disk || '1 GB',
+      location: location || 'United States',
+      status: 'stopped',
+      createdAt: new Date().toISOString()
+    };
+
+    // Create server directory
+    const serverPath = getServerPath(serverId);
+    await fs.ensureDir(serverPath);
+
+    // Create a default index file based on runtime
+    let defaultContent = '';
+    let defaultFile = '';
+    
+    if (runtime === 'nodejs' || runtime === 'bun') {
+      defaultFile = 'index.js';
+      defaultContent = `console.log('Hello from ${name}!');\n\nconst http = require('http');\n\nconst server = http.createServer((req, res) => {\n  res.writeHead(200, {'Content-Type': 'text/plain'});\n  res.end('Server is running!\\n');\n});\n\nconst PORT = process.env.PORT || 3000;\nserver.listen(PORT, () => {\n  console.log(\`Server listening on port \${PORT}\`);\n});\n`;
+    } else if (runtime === 'python') {
+      defaultFile = 'main.py';
+      defaultContent = `print('Hello from ${name}!')\n\nimport http.server\nimport socketserver\n\nPORT = 8000\n\nHandler = http.server.SimpleHTTPRequestHandler\n\nwith socketserver.TCPServer(("", PORT), Handler) as httpd:\n    print(f"Server running on port {PORT}")\n    httpd.serve_forever()\n`;
+    } else {
+      defaultFile = 'README.txt';
+      defaultContent = `Welcome to ${name}!\n\nThis is a ${runtime} server.\n\nAdd your files here to get started.`;
+    }
+
+    await fs.writeFile(path.join(serverPath, defaultFile), defaultContent);
+
+    servers.push(server);
+    saveServers(servers);
+
+    res.json({ success: true, server });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get all servers
+app.get('/api/servers', (req, res) => {
+  try {
+    const servers = loadServers();
+    res.json({ success: true, servers });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get single server
+app.get('/api/servers/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const servers = loadServers();
+    const server = servers.find(s => s.id === id);
+    
+    if (!server) {
+      return res.status(404).json({ success: false, error: 'Server not found' });
+    }
+
+    // Add status from running processes
+    server.status = serverProcesses.has(id) ? 'running' : 'stopped';
+    
+    res.json({ success: true, server });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update server
+app.put('/api/servers/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    const servers = loadServers();
+    const index = servers.findIndex(s => s.id === id);
+    
+    if (index === -1) {
+      return res.status(404).json({ success: false, error: 'Server not found' });
+    }
+
+    servers[index] = { ...servers[index], ...updates, id, updatedAt: new Date().toISOString() };
+    saveServers(servers);
+    
+    res.json({ success: true, server: servers[index] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Delete server
+app.delete('/api/servers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const servers = loadServers();
+    const index = servers.findIndex(s => s.id === id);
+    
+    if (index === -1) {
+      return res.status(404).json({ success: false, error: 'Server not found' });
+    }
+
+    // Stop server if running
+    if (serverProcesses.has(id)) {
+      const process = serverProcesses.get(id);
+      process.kill();
+      serverProcesses.delete(id);
+    }
+
+    // Delete server directory
+    const serverPath = getServerPath(id);
+    await fs.remove(serverPath);
+
+    servers.splice(index, 1);
+    saveServers(servers);
+    
+    res.json({ success: true, message: 'Server deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // File Manager Endpoints
 
 // List files in directory

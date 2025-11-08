@@ -3,7 +3,7 @@ export const getApiBase = (): string => {
 };
 
 export const getSocketBase = (): string => {
-  return import.meta.env.VITE_SOCKET_BASE_URL?.replace(/\/$/, '') ?? '';
+  return import.meta.env.VITE_SOCKET_BASE_URL?.replace(/\/$/, '') ?? window.location.origin;
 };
 
 export const getApiUrl = (path: string): string => {
@@ -12,5 +12,5 @@ export const getApiUrl = (path: string): string => {
   return `${base}${cleanPath}`;
 };
 
-export const API_URL = getApiUrl('/api');
+export const API_URL = '';
 export const SOCKET_URL = getSocketBase();
