@@ -71,7 +71,7 @@ const Hero = () => {
   return (
     <>
       {/* Definisi animasi keyframes langsung di dalam komponen menggunakan JSX style tag */}
-      <style jsx>{`
+      <style>{`
         .scroller-container {
           overflow: hidden;
           -webkit-mask-image: linear-gradient(to right, transparent, white 20%, white 80%, transparent);
