@@ -13,6 +13,8 @@ CodeX Hosting is a modern web application built with React and TypeScript that p
 - **Server Console**: Real-time console output, server control (start/stop/restart), file management, and environment variables
 - **Dashboard Integration**: Dynamic server list that loads from backend, showing server status, resources, and quick actions
 - **API Proxy**: Vite proxy configuration for seamless frontend-backend communication
+- **Auto-Start Feature**: Servers automatically start when Discord bot tokens are added as environment variables
+- **External URL Fix**: Removed hardcoded HMR clientPort configuration to allow Vite to auto-detect correct WebSocket endpoints for external URLs (Replit deployment URLs, GitHub Codespaces, etc.), fixing blank page issues when accessing from external domains
 
 ## User Preferences
 
