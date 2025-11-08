@@ -114,7 +114,6 @@ const CreateServer = () => {
       // Create server via API
       try {
         setLoading(true);
-        const selectedServerType = serverTypes.find(t => t.id === selectedType);
         
         const response = await fetch('/api/servers/create', {
           method: 'POST',
