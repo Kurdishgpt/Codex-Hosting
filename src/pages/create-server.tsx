@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Server, ArrowLeft } from 'lucide-react';
+import { getApiUrl } from '../config/api';
 
 interface ServerType {
   id: string;
@@ -115,7 +116,7 @@ const CreateServer = () => {
       try {
         setLoading(true);
         
-        const response = await fetch('/api/servers/create', {
+        const response = await fetch(getApiUrl('/api/servers/create'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

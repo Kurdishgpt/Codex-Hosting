@@ -4,7 +4,7 @@ import { Server, Wifi, Cpu, Database, HardDrive, Clock, PlayCircle, RotateCcw, S
 import ServerNav from '../components/ServerNav';
 import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
-import { API_URL, SOCKET_URL } from '../config/api';
+import { API_URL, SOCKET_URL, getApiUrl } from '../config/api';
 
 interface ConsoleLog {
   type: 'stdout' | 'stderr' | 'info' | 'clear';
@@ -46,7 +46,7 @@ const ServerConsole = () => {
 
     // Load server data from API
     if (id !== 'default') {
-      fetch(`/api/servers/${id}`)
+      fetch(getApiUrl(`/api/servers/${id}`))
         .then(res => res.json())
         .then(data => {
           if (data.success) {

@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Server, DollarSign, Database, HardDrive, Users, BookOpen, MessageCircle, Plus, ShoppingCart, Coins, Play, Settings } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { getApiUrl } from '../config/api';
 
 interface ServerData {
   id: string;
@@ -24,7 +25,7 @@ const Dashboard = () => {
 
   const loadServers = async () => {
     try {
-      const response = await fetch('/api/servers');
+      const response = await fetch(getApiUrl('/api/servers'));
       const data = await response.json();
       if (data.success) {
         setServers(data.servers);
