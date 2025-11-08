@@ -123,7 +123,7 @@ const saveServers = (servers) => {
 // Create a new server
 app.post('/api/servers/create', async (req, res) => {
   try {
-    const { name, runtime, command, description, cpu, memory, disk, location } = req.body;
+    const { name, runtime, version, command, description, cpu, memory, disk, location } = req.body;
     
     if (!name || !runtime) {
       return res.status(400).json({ success: false, error: 'Name and runtime are required' });
@@ -159,6 +159,7 @@ app.post('/api/servers/create', async (req, res) => {
       id: serverId,
       name,
       runtime,
+      version: version || 'latest',
       command: command || defaultCommand,
       description: description || '',
       cpu: cpu || '50%',

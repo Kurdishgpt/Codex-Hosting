@@ -32,6 +32,7 @@ import ServerStartup from './pages/server-startup';
 import ServerFiles from './pages/server-files';
 import ServerEdit from './pages/server-edit';
 import CreateServer from './pages/create-server';
+import ServerInstallation from './pages/server-installation';
 
 // Komponen untuk scroll ke atas saat ganti halaman
 const ScrollToTop = () => {
@@ -73,9 +74,11 @@ function App() {
 
             {/* Rute Create Server */}
             <Route path="/create-server" element={<CreateServer />} />
+            <Route path="/server/installation" element={<ServerInstallation />} />
 
             {/* Rute Server Management */}
             <Route path="/server/console" element={<ServerConsole />} />
+            <Route path="/server-console" element={<ServerConsole />} />
             <Route path="/server/analytics" element={<ServerAnalytics />} />
             <Route path="/server/settings" element={<ServerSettings />} />
             <Route path="/server/startup" element={<ServerStartup />} />

@@ -10,6 +10,7 @@ interface ServerType {
   description: string;
   icon: string;
   category: 'runtime' | 'database';
+  versions?: { value: string; label: string }[];
 }
 
 const serverTypes: ServerType[] = [
@@ -18,83 +19,133 @@ const serverTypes: ServerType[] = [
     name: 'NodeJS',
     description: 'A runtime for executing JavaScript server-side',
     icon: '⬢',
-    category: 'runtime'
+    category: 'runtime',
+    versions: [
+      { value: '20', label: 'Node.js 20 LTS (Recommended)' },
+      { value: '18', label: 'Node.js 18 LTS' },
+      { value: '16', label: 'Node.js 16' },
+    ]
   },
   {
     id: 'bun',
     name: 'Bun',
     description: "It's the same as NodeJS but faster!",
     icon: '🥟',
-    category: 'runtime'
+    category: 'runtime',
+    versions: [
+      { value: 'latest', label: 'Bun Latest (Recommended)' },
+      { value: '1.0', label: 'Bun 1.0' },
+    ]
   },
   {
     id: 'python',
     name: 'Python',
     description: 'Beginner-friendly, easy to understand',
     icon: '🐍',
-    category: 'runtime'
+    category: 'runtime',
+    versions: [
+      { value: '3.11', label: 'Python 3.11 (Recommended)' },
+      { value: '3.10', label: 'Python 3.10' },
+      { value: '3.9', label: 'Python 3.9' },
+    ]
   },
   {
     id: 'java',
     name: 'Java',
     description: 'Object-oriented, reliable',
     icon: '☕',
-    category: 'runtime'
+    category: 'runtime',
+    versions: [
+      { value: '17', label: 'Java 17 LTS (Recommended)' },
+      { value: '11', label: 'Java 11 LTS' },
+      { value: '8', label: 'Java 8' },
+    ]
   },
   {
     id: 'csharp',
     name: 'C#',
     description: 'Modern & powerful',
     icon: '🔷',
-    category: 'runtime'
+    category: 'runtime',
+    versions: [
+      { value: '7.0', label: '.NET 7.0 (Recommended)' },
+      { value: '6.0', label: '.NET 6.0 LTS' },
+    ]
   },
   {
     id: 'rust',
     name: 'Rust',
     description: 'Fearless concurrency!',
     icon: '🦀',
-    category: 'runtime'
+    category: 'runtime',
+    versions: [
+      { value: 'latest', label: 'Rust Latest (Recommended)' },
+      { value: 'stable', label: 'Rust Stable' },
+    ]
   },
   {
     id: 'lua',
     name: 'Lua',
     description: 'Lightweight scripting & extensible',
     icon: '🌙',
-    category: 'runtime'
+    category: 'runtime',
+    versions: [
+      { value: '5.4', label: 'Lua 5.4 (Recommended)' },
+      { value: '5.3', label: 'Lua 5.3' },
+    ]
   },
   {
     id: 'mongodb',
     name: 'MongoDB',
     description: 'NoSQL, flexible document database',
     icon: '🍃',
-    category: 'database'
+    category: 'database',
+    versions: [
+      { value: '7.0', label: 'MongoDB 7.0 (Recommended)' },
+      { value: '6.0', label: 'MongoDB 6.0' },
+      { value: '5.0', label: 'MongoDB 5.0' },
+    ]
   },
   {
     id: 'mariadb',
     name: 'MariaDB',
     description: 'MySQL fork & open-source',
     icon: '🐬',
-    category: 'database'
+    category: 'database',
+    versions: [
+      { value: '11', label: 'MariaDB 11 (Recommended)' },
+      { value: '10.11', label: 'MariaDB 10.11 LTS' },
+    ]
   },
   {
     id: 'redis',
     name: 'Redis',
     description: 'In-memory, fast key-value store',
     icon: '📮',
-    category: 'database'
+    category: 'database',
+    versions: [
+      { value: '7', label: 'Redis 7 (Recommended)' },
+      { value: '6', label: 'Redis 6' },
+    ]
   },
   {
     id: 'postgresql',
     name: 'PostgreSQL',
     description: 'Open-source relational database',
     icon: '🐘',
-    category: 'database'
+    category: 'database',
+    versions: [
+      { value: '16', label: 'PostgreSQL 16 (Recommended)' },
+      { value: '15', label: 'PostgreSQL 15' },
+      { value: '14', label: 'PostgreSQL 14' },
+    ]
   },
 ];
 
 const CreateServer = () => {
   const navigate = useNavigate();
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState<string>('');
   const [serverName, setServerName] = useState('');
   const [serverDescription, setServerDescription] = useState('');
   const [cpu, setCpu] = useState('50%');
@@ -106,6 +157,11 @@ const CreateServer = () => {
 
   const handleSelectType = (typeId: string) => {
     setSelectedType(typeId);
+    // Auto-select first version for the selected type
+    const type = serverTypes.find(t => t.id === typeId);
+    if (type?.versions && type.versions.length > 0) {
+      setSelectedVersion(type.versions[0].value);
+    }
   };
 
   const handleNext = async () => {
@@ -122,6 +178,7 @@ const CreateServer = () => {
           body: JSON.stringify({
             name: serverName,
             runtime: selectedType,
+            version: selectedVersion,
             description: serverDescription,
             cpu,
             memory,
@@ -133,8 +190,8 @@ const CreateServer = () => {
         const data = await response.json();
 
         if (data.success) {
-          alert(`Server "${serverName}" created successfully!`);
-          navigate('/dashboard');
+          // Navigate to installation screen
+          navigate(`/server/installation?id=${data.server.id}&name=${encodeURIComponent(serverName)}`);
         } else {
           alert(`Error: ${data.error}`);
         }
@@ -322,6 +379,24 @@ const CreateServer = () => {
                     className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none h-24"
                   />
                 </div>
+
+                {selectedServerType.versions && selectedServerType.versions.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-semibold mb-2">Version *</label>
+                    <select 
+                      value={selectedVersion}
+                      onChange={(e) => setSelectedVersion(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 focus:outline-none"
+                    >
+                      {selectedServerType.versions.map((version) => (
+                        <option key={version.value} value={version.value}>
+                          {version.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-gray-500 text-sm mt-2">Select the version for your {selectedServerType.name} server</p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
