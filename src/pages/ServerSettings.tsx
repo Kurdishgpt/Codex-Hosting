@@ -40,8 +40,8 @@ export default function ServerSettings() {
     try {
       setLoading(true);
       const [serverRes, packagesRes] = await Promise.all([
-        axios.get(`${API_URL}/api/servers/${serverId}`),
-        axios.get(`${API_URL}/api/packages?serverId=${serverId}`)
+        axios.get(`${API_URL}/servers/${serverId}`),
+        axios.get(`${API_URL}/packages?serverId=${serverId}`)
       ]);
       
       setServer(serverRes.data.server);
@@ -58,13 +58,15 @@ export default function ServerSettings() {
   const handleSaveCommand = async () => {
     try {
       setSaving(true);
-      await axios.put(`${API_URL}/api/servers/${serverId}`, {
+      await axios.put(`${API_URL}/servers/${serverId}`, {
         command: startupCommand,
         runtime: selectedRuntime
       });
       alert('Startup command saved successfully!');
     } catch (error: any) {
-      alert('Error saving command: ' + error.message);
+      console.error('Error saving command:', error);
+      const errorMsg = error.response?.data?.error || error.message || 'Network Error';
+      alert('Error saving command: ' + errorMsg);
     } finally {
       setSaving(false);
     }
@@ -85,25 +87,36 @@ export default function ServerSettings() {
     if (!newPackage.trim()) return;
     
     try {
-      await axios.post(`${API_URL}/api/packages/add`, {
+      const response = await axios.post(`${API_URL}/packages/add`, {
         serverId,
         packageName: newPackage.trim()
       });
-      setPackages([...packages, newPackage.trim()]);
-      setNewPackage('');
+      
+      if (response.data.success) {
+        setPackages([...packages, newPackage.trim()]);
+        setNewPackage('');
+        alert('Package added successfully!');
+      } else {
+        alert('Error adding package: ' + (response.data.error || 'Unknown error'));
+      }
     } catch (error: any) {
-      alert('Error adding package: ' + error.message);
+      console.error('Error adding package:', error);
+      const errorMsg = error.response?.data?.error || error.message || 'Network Error';
+      alert('Error adding package: ' + errorMsg);
     }
   };
 
   const handleRemovePackage = async (pkg: string) => {
     try {
-      await axios.delete(`${API_URL}/api/packages/remove`, {
+      await axios.delete(`${API_URL}/packages/remove`, {
         data: { serverId, packageName: pkg }
       });
       setPackages(packages.filter(p => p !== pkg));
+      alert('Package removed successfully!');
     } catch (error: any) {
-      alert('Error removing package: ' + error.message);
+      console.error('Error removing package:', error);
+      const errorMsg = error.response?.data?.error || error.message || 'Network Error';
+      alert('Error removing package: ' + errorMsg);
     }
   };
 
@@ -111,10 +124,13 @@ export default function ServerSettings() {
     if (!confirm('Remove all packages?')) return;
     
     try {
-      await axios.post(`${API_URL}/api/packages/clear`, { serverId });
+      await axios.post(`${API_URL}/packages/clear`, { serverId });
       setPackages([]);
+      alert('All packages cleared successfully!');
     } catch (error: any) {
-      alert('Error clearing packages: ' + error.message);
+      console.error('Error clearing packages:', error);
+      const errorMsg = error.response?.data?.error || error.message || 'Network Error';
+      alert('Error clearing packages: ' + errorMsg);
     }
   };
 
