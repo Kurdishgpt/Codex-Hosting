@@ -18,6 +18,7 @@ interface ServerData {
 const Dashboard = () => {
   const [servers, setServers] = useState<ServerData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadServers();
@@ -38,6 +39,13 @@ const Dashboard = () => {
   };
 
   const hasServers = servers.length > 0;
+
+  // Filter servers based on search query
+  const filteredServers = servers.filter(server =>
+    server.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    server.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    server.runtime.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const stats = [
     { label: 'Servers', value: '3', icon: Server },
@@ -162,7 +170,20 @@ const Dashboard = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
         >
-          <h2 className="text-2xl font-bold mb-6">Your Servers</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold">Your Servers</h2>
+            {hasServers && (
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="🔍 Search servers..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 w-64"
+                />
+              </div>
+            )}
+          </div>
           
           {loading ? (
             <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700 rounded-xl p-12 text-center">
@@ -197,8 +218,14 @@ const Dashboard = () => {
               </motion.div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {servers.map((server, index) => (
+            <>
+              {filteredServers.length === 0 ? (
+                <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700 rounded-xl p-12 text-center">
+                  <p className="text-gray-400">No servers found matching "{searchQuery}"</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredServers.map((server, index) => (
                 <motion.div
                   key={server.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -257,7 +284,9 @@ const Dashboard = () => {
                   </div>
                 </motion.div>
               ))}
-            </div>
+                </div>
+              )}
+            </>
           )}
         </motion.div>
 

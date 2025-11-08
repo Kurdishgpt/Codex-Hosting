@@ -514,20 +514,22 @@ app.get('/api/packages', (req, res) => {
 
 // Validate package name to prevent command injection
 const validatePackageName = (packageName) => {
-  // Allow only valid npm package name format: @scope/name, name, @scope/name@version
-  // This prevents command injection by only allowing alphanumeric, hyphens, underscores, dots, @, and /
-  const validPattern = /^(@[a-zA-Z0-9-~][a-zA-Z0-9-._~]*\/)?[a-zA-Z0-9-~][a-zA-Z0-9-._~]*(@[a-zA-Z0-9-._~]+)?$/;
+  // Allow npm package format including scoped packages: @scope/name, name, @scope/name@version
+  // Support spaces for multiple packages: "package1 package2"
+  // Prevent dangerous characters that could lead to command injection
+  const dangerousChars = /[;&|`$()><]/;
   
-  if (!validPattern.test(packageName)) {
-    throw new Error('Invalid package name format. Only alphanumeric characters, hyphens, underscores, dots, @, and / are allowed.');
+  if (dangerousChars.test(packageName)) {
+    throw new Error('Invalid package name: contains dangerous characters');
   }
   
   // Additional length check to prevent abuse
-  if (packageName.length > 214) {
-    throw new Error('Package name is too long (max 214 characters)');
+  if (packageName.length > 500) {
+    throw new Error('Package name is too long (max 500 characters)');
   }
   
-  return packageName;
+  // Trim whitespace
+  return packageName.trim();
 };
 
 // Add package to server
