@@ -12,5 +12,5 @@ export const getApiUrl = (path: string): string => {
   return `${base}${cleanPath}`;
 };
 
-export const API_URL = '';
+export const API_URL = '/api';
 export const SOCKET_URL = getSocketBase();

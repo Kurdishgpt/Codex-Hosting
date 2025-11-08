@@ -139,11 +139,27 @@ app.post('/api/servers/create', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Server with this name already exists' });
     }
 
+    // Set default command based on runtime
+    let defaultCommand = 'node index.js';
+    if (runtime === 'python') {
+      defaultCommand = 'python main.py';
+    } else if (runtime === 'bun') {
+      defaultCommand = 'bun index.js';
+    } else if (runtime === 'java') {
+      defaultCommand = 'java Main';
+    } else if (runtime === 'rust') {
+      defaultCommand = 'cargo run';
+    } else if (runtime === 'lua') {
+      defaultCommand = 'lua main.lua';
+    } else if (runtime === 'csharp') {
+      defaultCommand = 'dotnet run';
+    }
+
     const server = {
       id: serverId,
       name,
       runtime,
-      command: command || `node index.js`,
+      command: command || defaultCommand,
       description: description || '',
       cpu: cpu || '50%',
       memory: memory || '512 MB',
