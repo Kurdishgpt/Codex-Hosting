@@ -468,44 +468,8 @@ app.post('/api/env/set', async (req, res) => {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
         
-        // Start server with new env vars
-        const serverPath = getServerPath(serverId);
-        const cmd = server.command.split(' ')[0];
-        const args = server.command.split(' ').slice(1);
-        
-        const newProcess = spawn(cmd, args, {
-          cwd: serverPath,
-          env: { ...process.env, ...envVars }
-        });
-
-        consoleOutputs.set(serverId, []);
-
-        newProcess.stdout.on('data', (data) => {
-          const output = data.toString();
-          const logs = consoleOutputs.get(serverId) || [];
-          logs.push({ type: 'stdout', message: output, timestamp: new Date() });
-          consoleOutputs.set(serverId, logs);
-          io.emit(`console:${serverId}`, { type: 'stdout', message: output });
-        });
-
-        newProcess.stderr.on('data', (data) => {
-          const output = data.toString();
-          const logs = consoleOutputs.get(serverId) || [];
-          logs.push({ type: 'stderr', message: output, timestamp: new Date() });
-          consoleOutputs.set(serverId, logs);
-          io.emit(`console:${serverId}`, { type: 'stderr', message: output });
-        });
-
-        newProcess.on('exit', (code) => {
-          const message = `Process exited with code ${code}`;
-          const logs = consoleOutputs.get(serverId) || [];
-          logs.push({ type: 'info', message, timestamp: new Date() });
-          consoleOutputs.set(serverId, logs);
-          io.emit(`console:${serverId}`, { type: 'info', message });
-          serverProcesses.delete(serverId);
-        });
-
-        serverProcesses.set(serverId, newProcess);
+        // Start server with new env vars using smart startup
+        await startServerWithSmartStartup(serverId, server.command, server.runtime || 'nodejs', envVars);
         
         res.json({ 
           success: true, 
@@ -548,6 +512,24 @@ app.get('/api/packages', (req, res) => {
   }
 });
 
+// Validate package name to prevent command injection
+const validatePackageName = (packageName) => {
+  // Allow only valid npm package name format: @scope/name, name, @scope/name@version
+  // This prevents command injection by only allowing alphanumeric, hyphens, underscores, dots, @, and /
+  const validPattern = /^(@[a-zA-Z0-9-~][a-zA-Z0-9-._~]*\/)?[a-zA-Z0-9-~][a-zA-Z0-9-._~]*(@[a-zA-Z0-9-._~]+)?$/;
+  
+  if (!validPattern.test(packageName)) {
+    throw new Error('Invalid package name format. Only alphanumeric characters, hyphens, underscores, dots, @, and / are allowed.');
+  }
+  
+  // Additional length check to prevent abuse
+  if (packageName.length > 214) {
+    throw new Error('Package name is too long (max 214 characters)');
+  }
+  
+  return packageName;
+};
+
 // Add package to server
 app.post('/api/packages/add', (req, res) => {
   try {
@@ -555,6 +537,13 @@ app.post('/api/packages/add', (req, res) => {
     
     if (!packageName) {
       return res.status(400).json({ success: false, error: 'Package name is required' });
+    }
+
+    // Validate package name to prevent command injection
+    try {
+      validatePackageName(packageName);
+    } catch (validationError) {
+      return res.status(400).json({ success: false, error: validationError.message });
     }
 
     const packages = serverPackages.get(serverId) || [];
@@ -600,34 +589,60 @@ app.post('/api/packages/clear', (req, res) => {
   }
 });
 
-// Server Control Endpoints
-
-// Start server
-app.post('/api/server/start', async (req, res) => {
-  try {
-    const { serverId = 'default', command = 'node index.js', runtime = 'nodejs' } = req.body;
+// Helper function to run a command and wait for completion
+const runInstallCommand = (command, cwd, serverId) => {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('bash', ['-c', command], { cwd });
     
-    if (serverProcesses.has(serverId)) {
-      return res.json({ success: false, error: 'Server is already running' });
-    }
-
-    const serverPath = getServerPath(serverId);
-    const envVars = environmentVariables.get(serverId) || {};
-    const packages = serverPackages.get(serverId) || [];
+    proc.stdout.on('data', (data) => {
+      const output = data.toString();
+      const logs = consoleOutputs.get(serverId) || [];
+      logs.push({ type: 'stdout', message: output, timestamp: new Date() });
+      consoleOutputs.set(serverId, logs);
+      io.emit(`console:${serverId}`, { type: 'stdout', message: output });
+    });
     
-    // Initialize console output
+    proc.stderr.on('data', (data) => {
+      const output = data.toString();
+      const logs = consoleOutputs.get(serverId) || [];
+      logs.push({ type: 'stderr', message: output, timestamp: new Date() });
+      consoleOutputs.set(serverId, logs);
+      io.emit(`console:${serverId}`, { type: 'stderr', message: output });
+    });
+    
+    proc.on('exit', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Installation failed with exit code ${code}`));
+      }
+    });
+    
+    proc.on('error', (error) => {
+      reject(error);
+    });
+  });
+};
+
+// Helper function to start a server with smart startup logic
+const startServerWithSmartStartup = async (serverId, command, runtime, envVars = {}) => {
+  const serverPath = getServerPath(serverId);
+  const packages = serverPackages.get(serverId) || [];
+  
+  // Initialize console output
+  if (!consoleOutputs.has(serverId)) {
     consoleOutputs.set(serverId, []);
-    
-    // Log startup
-    const startupLog = `[CodeX] Starting server...\n`;
-    const logs = consoleOutputs.get(serverId) || [];
-    logs.push({ type: 'info', message: startupLog, timestamp: new Date() });
-    consoleOutputs.set(serverId, logs);
-    io.emit(`console:${serverId}`, { type: 'info', message: startupLog });
-    
-    // Build smart startup command based on runtime
-    let startupCommand = '';
-    
+  }
+  
+  // Log startup
+  const startupLog = `[CodeX] Starting server...\n`;
+  const logs = consoleOutputs.get(serverId) || [];
+  logs.push({ type: 'info', message: startupLog, timestamp: new Date() });
+  consoleOutputs.set(serverId, logs);
+  io.emit(`console:${serverId}`, { type: 'info', message: startupLog });
+  
+  // Run package installation steps first (synchronously)
+  try {
     if (runtime === 'nodejs' || runtime === 'bun') {
       // Check if package.json exists, create if needed
       const packageJsonPath = path.join(serverPath, 'package.json');
@@ -652,40 +667,107 @@ app.post('/api/server/start', async (req, res) => {
         io.emit(`console:${serverId}`, { type: 'info', message: pkgLog });
       }
       
-      // Build startup command with package installation
       const packageManager = runtime === 'bun' ? 'bun' : 'npm';
-      const installCmd = runtime === 'bun' ? 'bun install' : 'npm install';
+      const nodeModulesPath = path.join(serverPath, 'node_modules');
       
-      if (packages.length > 0) {
-        const packagesStr = packages.join(' ');
-        startupCommand = `if [ ! -d "node_modules" ]; then ${installCmd}; fi; ${packageManager} install ${packagesStr}; ${command}`;
+      // Install base dependencies if node_modules doesn't exist
+      if (!await fs.pathExists(nodeModulesPath)) {
+        const installLog = `[CodeX] Installing base dependencies...\n`;
+        const logs = consoleOutputs.get(serverId) || [];
+        logs.push({ type: 'info', message: installLog, timestamp: new Date() });
+        consoleOutputs.set(serverId, logs);
+        io.emit(`console:${serverId}`, { type: 'info', message: installLog });
         
+        await runInstallCommand(`${packageManager} install`, serverPath, serverId);
+      }
+      
+      // Install additional packages if specified
+      if (packages.length > 0) {
+        // Validate all package names
+        packages.forEach(pkg => validatePackageName(pkg));
+        
+        const packagesStr = packages.join(' ');
         const installLog = `[CodeX] Installing packages: ${packagesStr}\n`;
         const logs = consoleOutputs.get(serverId) || [];
         logs.push({ type: 'info', message: installLog, timestamp: new Date() });
         consoleOutputs.set(serverId, logs);
         io.emit(`console:${serverId}`, { type: 'info', message: installLog });
-      } else {
-        startupCommand = `if [ ! -d "node_modules" ]; then ${installCmd}; fi; ${command}`;
+        
+        await runInstallCommand(`${packageManager} install ${packagesStr}`, serverPath, serverId);
       }
-    } else if (runtime === 'python') {
+    } else if (runtime === 'python' && packages.length > 0) {
       // Python package installation
-      if (packages.length > 0) {
-        const packagesStr = packages.join(' ');
-        startupCommand = `pip install ${packagesStr}; ${command}`;
-      } else {
-        startupCommand = command;
-      }
-    } else {
-      // Other runtimes - just run the command
-      startupCommand = command;
+      packages.forEach(pkg => validatePackageName(pkg));
+      const packagesStr = packages.join(' ');
+      
+      const installLog = `[CodeX] Installing Python packages: ${packagesStr}\n`;
+      const logs = consoleOutputs.get(serverId) || [];
+      logs.push({ type: 'info', message: installLog, timestamp: new Date() });
+      consoleOutputs.set(serverId, logs);
+      io.emit(`console:${serverId}`, { type: 'info', message: installLog });
+      
+      await runInstallCommand(`pip install ${packagesStr}`, serverPath, serverId);
     }
     
-    // Execute the startup command using bash
-    const childProcess = spawn('bash', ['-c', startupCommand], {
+    // Installations completed successfully - now start the actual command
+    const runLog = `[CodeX] Starting application...\n`;
+    const logs2 = consoleOutputs.get(serverId) || [];
+    logs2.push({ type: 'info', message: runLog, timestamp: new Date() });
+    consoleOutputs.set(serverId, logs2);
+    io.emit(`console:${serverId}`, { type: 'info', message: runLog });
+    
+  } catch (installError) {
+    // Installation failed - reject immediately
+    throw new Error(`Package installation failed: ${installError.message}`);
+  }
+  
+  // Now start the actual process and monitor for readiness
+  return new Promise((resolve, reject) => {
+    const childProcess = spawn('bash', ['-c', command], {
       cwd: serverPath,
       env: { ...process.env, ...envVars }
     });
+
+    let readinessConfirmed = false;
+    let firstOutputReceived = false;
+    let processExited = false;
+    let survivalTimer = null;
+
+    // Main readiness timeout: if process runs for 10 seconds without output, consider it started
+    const readinessTimeout = setTimeout(() => {
+      if (!readinessConfirmed && !processExited) {
+        readinessConfirmed = true;
+        const readyLog = `[CodeX] Server is running\n`;
+        const logs = consoleOutputs.get(serverId) || [];
+        logs.push({ type: 'info', message: readyLog, timestamp: new Date() });
+        consoleOutputs.set(serverId, logs);
+        io.emit(`console:${serverId}`, { type: 'info', message: readyLog });
+        resolve(childProcess);
+      }
+    }, 10000);
+
+    // Confirm readiness after receiving output and surviving for a short period
+    const confirmReadiness = () => {
+      if (readinessConfirmed) return;
+      
+      if (!firstOutputReceived) {
+        firstOutputReceived = true;
+        clearTimeout(readinessTimeout);
+        
+        // Wait 3 more seconds to ensure process doesn't immediately crash
+        survivalTimer = setTimeout(() => {
+          if (!processExited && !readinessConfirmed) {
+            readinessConfirmed = true;
+            const readyLog = `[CodeX] Server started successfully\n`;
+            const logs = consoleOutputs.get(serverId) || [];
+            logs.push({ type: 'info', message: readyLog, timestamp: new Date() });
+            consoleOutputs.set(serverId, logs);
+            io.emit(`console:${serverId}`, { type: 'info', message: readyLog });
+            resolve(childProcess);
+          }
+        }, 3000);
+      }
+    };
 
     childProcess.stdout.on('data', (data) => {
       const output = data.toString();
@@ -693,6 +775,8 @@ app.post('/api/server/start', async (req, res) => {
       logs.push({ type: 'stdout', message: output, timestamp: new Date() });
       consoleOutputs.set(serverId, logs);
       io.emit(`console:${serverId}`, { type: 'stdout', message: output });
+      
+      confirmReadiness();
     });
 
     childProcess.stderr.on('data', (data) => {
@@ -701,18 +785,57 @@ app.post('/api/server/start', async (req, res) => {
       logs.push({ type: 'stderr', message: output, timestamp: new Date() });
       consoleOutputs.set(serverId, logs);
       io.emit(`console:${serverId}`, { type: 'stderr', message: output });
+      
+      confirmReadiness();
+    });
+
+    childProcess.on('error', (error) => {
+      clearTimeout(readinessTimeout);
+      if (survivalTimer) clearTimeout(survivalTimer);
+      serverProcesses.delete(serverId);
+      if (!readinessConfirmed) {
+        reject(new Error(`Failed to start: ${error.message}`));
+      }
     });
 
     childProcess.on('exit', (code) => {
+      clearTimeout(readinessTimeout);
+      if (survivalTimer) clearTimeout(survivalTimer);
+      processExited = true;
+      
       const message = `[CodeX] Process exited with code ${code}\n`;
       const logs = consoleOutputs.get(serverId) || [];
       logs.push({ type: 'info', message, timestamp: new Date() });
       consoleOutputs.set(serverId, logs);
       io.emit(`console:${serverId}`, { type: 'info', message });
       serverProcesses.delete(serverId);
+      
+      if (!readinessConfirmed) {
+        if (code !== 0) {
+          reject(new Error(`Server failed to start and exited with code ${code}`));
+        } else {
+          reject(new Error(`Server exited immediately (exit code 0)`));
+        }
+      }
     });
 
     serverProcesses.set(serverId, childProcess);
+  });
+};
+
+// Server Control Endpoints
+
+// Start server
+app.post('/api/server/start', async (req, res) => {
+  try {
+    const { serverId = 'default', command = 'node index.js', runtime = 'nodejs' } = req.body;
+    
+    if (serverProcesses.has(serverId)) {
+      return res.json({ success: false, error: 'Server is already running' });
+    }
+
+    const envVars = environmentVariables.get(serverId) || {};
+    await startServerWithSmartStartup(serverId, command, runtime, envVars);
 
     res.json({ success: true, message: 'Server started successfully' });
   } catch (error) {
@@ -742,7 +865,7 @@ app.post('/api/server/stop', (req, res) => {
 // Restart server
 app.post('/api/server/restart', async (req, res) => {
   try {
-    const { serverId = 'default', command, runtime } = req.body;
+    const { serverId = 'default', command = 'node index.js', runtime = 'nodejs' } = req.body;
     
     // Stop if running
     const childProcess = serverProcesses.get(serverId);
@@ -752,12 +875,9 @@ app.post('/api/server/restart', async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    // Start again
-    const startResponse = await fetch('http://localhost:3001/api/server/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ serverId, command, runtime })
-    });
+    // Start again using smart startup
+    const envVars = environmentVariables.get(serverId) || {};
+    await startServerWithSmartStartup(serverId, command, runtime, envVars);
 
     res.json({ success: true, message: 'Server restarted successfully' });
   } catch (error) {
