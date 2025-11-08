@@ -27,7 +27,7 @@ import Dashboard from './pages/dashboard';
 import AccountSettings from './pages/account';
 import ServerConsole from './pages/server-console';
 import ServerAnalytics from './pages/server-analytics';
-import ServerSettings from './pages/server-settings';
+import ServerSettings from './pages/ServerSettings';
 import ServerStartup from './pages/server-startup';
 import ServerFiles from './pages/server-files';
 import ServerEdit from './pages/server-edit';
@@ -80,6 +80,7 @@ function App() {
             <Route path="/server/console" element={<ServerConsole />} />
             <Route path="/server-console" element={<ServerConsole />} />
             <Route path="/server/analytics" element={<ServerAnalytics />} />
+            <Route path="/server/:serverId/settings" element={<ServerSettings />} />
             <Route path="/server/settings" element={<ServerSettings />} />
             <Route path="/server/startup" element={<ServerStartup />} />
             <Route path="/server/files" element={<ServerFiles />} />
