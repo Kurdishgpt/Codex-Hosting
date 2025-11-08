@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
-import { Server, Wifi, Cpu, Database, HardDrive, Clock, PlayCircle, RotateCcw, StopCircle, Terminal, X, Save } from 'lucide-react';
+import { Server, Wifi, Cpu, Database, HardDrive, Clock, PlayCircle, RotateCcw, StopCircle, Terminal, X, Save, Key } from 'lucide-react';
 import ServerNav from '../components/ServerNav';
 import axios from 'axios';
 import { io, Socket } from 'socket.io-client';
@@ -19,11 +19,18 @@ interface ServerConfig {
   runtime: string;
 }
 
+interface EnvVariable {
+  key: string;
+  value: string;
+}
+
 const ServerConsole = () => {
   const [consoleOutput, setConsoleOutput] = useState<ConsoleLog[]>([]);
   const [serverStatus, setServerStatus] = useState<'running' | 'stopped'>('stopped');
   const [commandInput, setCommandInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [envVars, setEnvVars] = useState<EnvVariable[]>([]);
+  const [showEnvVars, setShowEnvVars] = useState(false);
   const [uptime, setUptime] = useState('0h 0m 0s');
   const [cpuUsage] = useState(0.19);
   const [memoryUsage] = useState({ used: 107.96, total: 512 });
@@ -86,13 +93,29 @@ const ServerConsole = () => {
       }
     });
 
-    // Load initial status
+    // Load initial status and env vars
     loadServerStatus();
+    loadEnvironmentVariables();
 
     return () => {
       socketRef.current?.disconnect();
     };
   }, [serverId]);
+
+  const loadEnvironmentVariables = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/env`, {
+        params: { serverId }
+      });
+      const variables = Object.entries(response.data.variables).map(([key, value]) => ({
+        key,
+        value: value as string
+      }));
+      setEnvVars(variables);
+    } catch (error) {
+      console.error('Error loading environment variables:', error);
+    }
+  };
 
   useEffect(() => {
     // Auto-scroll to bottom when new messages arrive
@@ -212,10 +235,16 @@ const ServerConsole = () => {
     if (!commandInput.trim()) return;
 
     try {
-      await axios.post(`${API_URL}/console/command`, {
+      // Use the exec endpoint to run shell commands with environment variables
+      await axios.post(`${API_URL}/console/exec`, {
         serverId,
         command: commandInput
       });
+      
+      // Also log the command to console
+      const cmdLog = { type: 'info' as const, message: `$ ${commandInput}\n`, timestamp: new Date() };
+      setConsoleOutput(prev => [...prev, cmdLog]);
+      
       setCommandInput('');
     } catch (error: any) {
       console.error('Error sending command:', error);
@@ -283,7 +312,59 @@ const ServerConsole = () => {
             <Save size={18} />
             Save Server
           </button>
+          <button 
+            onClick={() => setShowEnvVars(!showEnvVars)}
+            className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+          >
+            <Key size={18} />
+            Env Vars ({envVars.length})
+          </button>
         </div>
+
+        {/* Environment Variables Panel */}
+        {showEnvVars && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-gray-800/50 backdrop-blur-md border border-gray-700 rounded-xl p-6 mb-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <Key size={20} className="text-yellow-400" />
+                Environment Variables
+              </h3>
+              <button 
+                onClick={() => window.location.href = `/server-settings?id=${serverId}`}
+                className="text-sm text-blue-400 hover:text-blue-300"
+              >
+                Manage in Settings →
+              </button>
+            </div>
+            {envVars.length === 0 ? (
+              <div className="bg-gray-900 rounded-lg p-6 text-center">
+                <p className="text-gray-400">No environment variables set. Add them in Settings.</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {envVars.map((envVar, index) => (
+                  <div
+                    key={index}
+                    className="bg-gray-900 border border-gray-700 rounded-lg p-3"
+                  >
+                    <p className="font-mono text-sm text-green-400 font-semibold">{envVar.key}</p>
+                    <p className="font-mono text-xs text-gray-400 mt-1 break-all">
+                      {envVar.value.length > 50 ? envVar.value.substring(0, 50) + '...' : envVar.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-4 text-xs text-gray-400">
+              💡 Console commands will run with these environment variables automatically
+            </div>
+          </motion.div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <motion.div

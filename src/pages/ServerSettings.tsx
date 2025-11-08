@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Server, Package, Save, Copy, RotateCcw, X, Plus } from 'lucide-react';
 import axios from 'axios';
-
-const API_URL = 'http://localhost:3001';
+import { API_URL } from '../config/api';
 
 // Available Node.js versions
 const nodeVersions = [

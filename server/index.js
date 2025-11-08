@@ -910,7 +910,7 @@ app.post('/api/console/clear', (req, res) => {
   }
 });
 
-// Send command to console
+// Send command to console (for stdin commands)
 app.post('/api/console/command', (req, res) => {
   try {
     const { serverId = 'default', command } = req.body;
@@ -922,6 +922,56 @@ app.post('/api/console/command', (req, res) => {
 
     childProcess.stdin.write(command + '\n');
     res.json({ success: true, message: 'Command sent' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Run shell command with environment variables (for console commands)
+app.post('/api/console/exec', (req, res) => {
+  try {
+    const { serverId = 'default', command } = req.body;
+    
+    if (!command || !command.trim()) {
+      return res.status(400).json({ success: false, error: 'Command is required' });
+    }
+
+    const serverPath = getServerPath(serverId);
+    const envVars = environmentVariables.get(serverId) || {};
+    
+    // Merge env vars with process env
+    const env = { ...process.env, ...envVars };
+    
+    const proc = spawn('bash', ['-c', command], {
+      cwd: serverPath,
+      env: env
+    });
+    
+    proc.stdout.on('data', (data) => {
+      const output = data.toString();
+      const logs = consoleOutputs.get(serverId) || [];
+      logs.push({ type: 'stdout', message: output, timestamp: new Date() });
+      consoleOutputs.set(serverId, logs);
+      io.emit(`console:${serverId}`, { type: 'stdout', message: output });
+    });
+    
+    proc.stderr.on('data', (data) => {
+      const output = data.toString();
+      const logs = consoleOutputs.get(serverId) || [];
+      logs.push({ type: 'stderr', message: output, timestamp: new Date() });
+      consoleOutputs.set(serverId, logs);
+      io.emit(`console:${serverId}`, { type: 'stderr', message: output });
+    });
+    
+    proc.on('exit', (code) => {
+      const message = `[Command exited with code ${code}]\n`;
+      const logs = consoleOutputs.get(serverId) || [];
+      logs.push({ type: 'info', message, timestamp: new Date() });
+      consoleOutputs.set(serverId, logs);
+      io.emit(`console:${serverId}`, { type: 'info', message });
+    });
+    
+    res.json({ success: true, message: 'Command executed' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
