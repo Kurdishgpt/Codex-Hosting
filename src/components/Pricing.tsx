@@ -9,34 +9,33 @@ const currencies = {
   EUR: { symbol: '€', name: 'Euro', rate: 0.92 },
 };
 
-// PERUBAHAN: Menambahkan properti 'link' untuk setiap paket
 const pricingPlans = [
   {
     title: 'Bot Hosting',
     image: '/discord.jpeg',
-    priceUSD: 0.39,
+    priceUSD: 0,
     features: ['ECC Memory', 'Fast Performance', 'Low Latency', 'Advanced security', 'Managed services'],
     buttonText: 'Order Now',
     popular: true,
-    link: '/discord',
+    link: '/dashboard',
   },
   {
     title: 'Game Servers',
     image: '/minecraft.jpeg',
-    priceUSD: 1.57,
+    priceUSD: 0,
     features: ['Instant deployment', 'DDoS protection', '24/7 support', 'Custom configurations', 'Mod support'],
     buttonText: 'View More',
     popular: false,
-    link: '/minecraft',
+    link: '/dashboard',
   },
   {
     title: 'VPS Hosting',
     image: '/vps.jpeg',
-    priceUSD: 4.49,
+    priceUSD: 0,
     features: ['Full root access', 'SSD storage', '99.9% uptime', 'Multiple OS options', 'Backup included'],
     buttonText: 'Order Now',
     popular: false,
-    link: '/vps',
+    link: '/dashboard',
   },
 ];
 
@@ -105,7 +104,7 @@ const Pricing = () => {
               </div>
               <div className="p-6">
                 <p className="text-gray-400">Starting at</p>
-                <p className="text-5xl font-bold text-white my-2">{currentCurrency.symbol}{(plan.priceUSD * currentCurrency.rate).toFixed(2)}<span className="text-lg font-medium text-gray-400">/month</span></p>
+                <p className="text-5xl font-bold text-green-400 my-2">FREE<span className="text-lg font-medium text-gray-400">/month</span></p>
                 <ul className="space-y-3 my-8">
                   {plan.features.map((feature) => (<li key={feature} className="flex items-center text-gray-300"><Check className="w-5 h-5 text-blue-500 mr-3 flex-shrink-0" /><span>{feature}</span></li>))}
                 </ul>
