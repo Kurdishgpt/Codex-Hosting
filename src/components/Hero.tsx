@@ -126,13 +126,17 @@ const Hero = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="bg-blue-600 text-white font-semibold px-6 py-3 rounded-lg flex items-center space-x-2 hover:bg-blue-700 transition-colors"
+                  onClick={() => {
+                    const pricingSection = document.getElementById('pricing');
+                    pricingSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                  className="bg-blue-600 text-white font-semibold px-6 py-3 rounded-lg flex items-center space-x-2 hover:bg-blue-700 transition-colors cursor-pointer"
                 >
                   <span>Get Started</span>
                   <ArrowRight size={20} />
                 </motion.button>
                 <a
-                  href="#"
+                  href="#pricing"
                   className="text-gray-300 font-medium hover:text-white flex items-center space-x-2 transition-colors"
                 >
                   <span>Learn More</span>
