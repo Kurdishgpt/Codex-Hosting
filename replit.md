@@ -28,10 +28,12 @@ Preferred communication style: Simple, everyday language.
 
 **Routing Structure**
 - Home page with hero, features, locations, pricing overview, FAQ, reviews, and CTA sections
+- Dashboard page with user stats, quick actions, and server management (added November 8, 2025)
+- Account Settings page for profile and connection management (added November 8, 2025)
 - Dedicated pricing pages for each service type (Discord bots, Minecraft servers, VPS)
 - Informational pages (About Us, Support, Terms of Service, Privacy Policy, Status Page)
 - 404 Not Found page with navigation back to home
-- Vercel-specific SPA routing configuration for proper URL handling
+- SPA routing configuration for proper URL handling
 
 **State Management**
 - Component-level state using React useState hook
@@ -62,6 +64,8 @@ Preferred communication style: Simple, everyday language.
 - `Questions`: FAQ accordion with smooth expand/collapse animations
 
 **Page Components**
+- Dashboard page (`dashboard.tsx`): User control panel with stats grid, quick actions (Create Server, Buy Resources, Earn Credits), example server cards, and help section
+- Account Settings page (`account.tsx`): User profile management with username/email update forms and Discord connection integration
 - Service-specific pricing pages (`discord/index.tsx`, `minecraft/index.tsx`, `vps/index.tsx`) with filterable plans
 - Information pages (`aboutus.tsx`, `support.tsx`, `tos.tsx`, `privacy.tsx`, `status.tsx`)
 - `NotFound.tsx`: Custom 404 error page with glass morphism styling
