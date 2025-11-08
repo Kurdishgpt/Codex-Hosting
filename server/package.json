@@ -1,0 +1,20 @@
+{
+  "name": "codex-hosting-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Backend server for CodeX hosting panel",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1",
+    "multer": "^1.4.5-lts.1",
+    "cors": "^2.8.5",
+    "fs-extra": "^11.2.0",
+    "archiver": "^6.0.1",
+    "unzipper": "^0.10.14"
+  }
+}
