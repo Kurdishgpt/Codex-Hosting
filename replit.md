@@ -16,6 +16,13 @@ CodeX Hosting is a modern web application built with React and TypeScript that p
 - **Auto-Start Feature**: Servers automatically start when Discord bot tokens are added as environment variables
 - **External URL Fix**: Removed hardcoded HMR clientPort configuration to allow Vite to auto-detect correct WebSocket endpoints for external URLs (Replit deployment URLs, GitHub Codespaces, etc.), fixing blank page issues when accessing from external domains
 
+### Environment Variables & Console Improvements (November 8, 2025 - Latest)
+- **Network Error Fix**: Fixed hardcoded API_URL in ServerSettings.tsx that caused network errors when adding packages
+- **Console Environment Variables**: Added /api/console/exec endpoint that injects environment variables when running shell commands
+- **Env Vars Display**: Added environment variables panel to console with toggle button showing all configured variables
+- **Better Console UX**: Console commands now automatically have access to server environment variables
+- **Settings Integration**: Added link from console to settings page for managing environment variables
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
