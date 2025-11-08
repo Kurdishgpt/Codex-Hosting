@@ -488,7 +488,7 @@ app.post('/api/server/start', (req, res) => {
     cmd = commandParts[0];
     args = commandParts.slice(1);
 
-    const process = spawn(cmd, args, {
+    const childProcess = spawn(cmd, args, {
       cwd: serverPath,
       env: { ...process.env, ...envVars }
     });
@@ -496,7 +496,7 @@ app.post('/api/server/start', (req, res) => {
     // Initialize console output
     consoleOutputs.set(serverId, []);
 
-    process.stdout.on('data', (data) => {
+    childProcess.stdout.on('data', (data) => {
       const output = data.toString();
       const logs = consoleOutputs.get(serverId) || [];
       logs.push({ type: 'stdout', message: output, timestamp: new Date() });
@@ -504,7 +504,7 @@ app.post('/api/server/start', (req, res) => {
       io.emit(`console:${serverId}`, { type: 'stdout', message: output });
     });
 
-    process.stderr.on('data', (data) => {
+    childProcess.stderr.on('data', (data) => {
       const output = data.toString();
       const logs = consoleOutputs.get(serverId) || [];
       logs.push({ type: 'stderr', message: output, timestamp: new Date() });
@@ -512,7 +512,7 @@ app.post('/api/server/start', (req, res) => {
       io.emit(`console:${serverId}`, { type: 'stderr', message: output });
     });
 
-    process.on('exit', (code) => {
+    childProcess.on('exit', (code) => {
       const message = `Process exited with code ${code}`;
       const logs = consoleOutputs.get(serverId) || [];
       logs.push({ type: 'info', message, timestamp: new Date() });
@@ -521,7 +521,7 @@ app.post('/api/server/start', (req, res) => {
       serverProcesses.delete(serverId);
     });
 
-    serverProcesses.set(serverId, process);
+    serverProcesses.set(serverId, childProcess);
 
     res.json({ success: true, message: 'Server started successfully' });
   } catch (error) {
@@ -533,13 +533,13 @@ app.post('/api/server/start', (req, res) => {
 app.post('/api/server/stop', (req, res) => {
   try {
     const { serverId = 'default' } = req.body;
-    const process = serverProcesses.get(serverId);
+    const childProcess = serverProcesses.get(serverId);
 
-    if (!process) {
+    if (!childProcess) {
       return res.json({ success: false, error: 'Server is not running' });
     }
 
-    process.kill();
+    childProcess.kill();
     serverProcesses.delete(serverId);
 
     res.json({ success: true, message: 'Server stopped successfully' });
@@ -554,9 +554,9 @@ app.post('/api/server/restart', async (req, res) => {
     const { serverId = 'default', command, runtime } = req.body;
     
     // Stop if running
-    const process = serverProcesses.get(serverId);
-    if (process) {
-      process.kill();
+    const childProcess = serverProcesses.get(serverId);
+    if (childProcess) {
+      childProcess.kill();
       serverProcesses.delete(serverId);
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
@@ -603,13 +603,13 @@ app.post('/api/console/clear', (req, res) => {
 app.post('/api/console/command', (req, res) => {
   try {
     const { serverId = 'default', command } = req.body;
-    const process = serverProcesses.get(serverId);
+    const childProcess = serverProcesses.get(serverId);
 
-    if (!process) {
+    if (!childProcess) {
       return res.json({ success: false, error: 'Server is not running' });
     }
 
-    process.stdin.write(command + '\n');
+    childProcess.stdin.write(command + '\n');
     res.json({ success: true, message: 'Command sent' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
