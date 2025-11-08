@@ -2,7 +2,17 @@
 
 ## Overview
 
-CodeX Hosting is a modern web application built with React and TypeScript that provides high-performance hosting solutions for Discord bots, Minecraft game servers, VPS hosting, and Lavalink nodes. The application features a marketing website with detailed pricing pages, company information, legal documentation, and a real-time status monitoring system. Built with Vite for fast development and optimized production builds, the application leverages Tailwind CSS for consistent styling and Framer Motion for smooth animations throughout the user experience.
+CodeX Hosting is a modern web application built with React and TypeScript that provides high-performance hosting solutions for Discord bots, Minecraft game servers, VPS hosting, and Lavalink nodes. The application features a marketing website with detailed pricing pages, company information, legal documentation, a real-time status monitoring system, and a fully functional server management panel. Built with Vite for fast development and optimized production builds, the application leverages Tailwind CSS for consistent styling and Framer Motion for smooth animations throughout the user experience.
+
+## Recent Changes (November 8, 2025)
+
+### Server Management System Implementation
+- **Backend Server**: Added Express.js backend server (port 3001) with WebSocket support for real-time console streaming
+- **Server Storage**: Implemented file-based server persistence using servers.json for managing multiple user servers
+- **Runtime Support**: Automatic setup for Node.js, Python, Bun, Java, Rust, Lua, and C# with runtime-specific default commands
+- **Server Console**: Real-time console output, server control (start/stop/restart), file management, and environment variables
+- **Dashboard Integration**: Dynamic server list that loads from backend, showing server status, resources, and quick actions
+- **API Proxy**: Vite proxy configuration for seamless frontend-backend communication
 
 ## User Preferences
 
