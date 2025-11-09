@@ -168,6 +168,14 @@ app.post('/api/servers/create', async (req, res) => {
       disk: disk || '1 GB',
       location: location || 'United States',
       status: 'stopped',
+      gitRepo: '',
+      gitBranch: '',
+      gitUsername: '',
+      gitAccessToken: '',
+      userUploadedFiles: 0,
+      autoUpdate: 0,
+      jsFile: 'index.js',
+      startupCommand: '',
       createdAt: new Date().toISOString()
     };
 
@@ -333,6 +341,14 @@ app.post('/api/files/upload', upload.array('files'), async (req, res) => {
       }
     }
 
+    // Mark that user has uploaded files (prevents Git operations)
+    const servers = loadServers();
+    const serverIndex = servers.findIndex(s => s.id === serverId);
+    if (serverIndex !== -1) {
+      servers[serverIndex].userUploadedFiles = 1;
+      saveServers(servers);
+    }
+
     res.json({ 
       success: true, 
       message: `Uploaded ${req.files.length} file(s)`,
@@ -354,6 +370,14 @@ app.post('/api/files/create', async (req, res) => {
       await fs.ensureDir(targetPath);
     } else {
       await fs.writeFile(targetPath, content);
+    }
+
+    // Mark that user has created files manually (prevents Git operations)
+    const servers = loadServers();
+    const serverIndex = servers.findIndex(s => s.id === serverId);
+    if (serverIndex !== -1) {
+      servers[serverIndex].userUploadedFiles = 1;
+      saveServers(servers);
     }
 
     res.json({ success: true, message: `Created ${isDirectory ? 'directory' : 'file'}: ${filePath}` });
@@ -469,7 +493,7 @@ app.post('/api/env/set', async (req, res) => {
         }
         
         // Start server with new env vars using smart startup
-        await startServerWithSmartStartup(serverId, server.command, server.runtime || 'nodejs', envVars);
+        await startServerWithSmartStartup(serverId, server.command, server.runtime || 'nodejs', envVars, server);
         
         res.json({ 
           success: true, 
@@ -638,10 +662,15 @@ const runInstallCommand = (command, cwd, serverId) => {
 };
 
 // Safe helper function to run package manager commands with argument arrays (prevents injection)
-const runInstallCommandSafe = (command, args, cwd, serverId) => {
+const runInstallCommandSafe = (command, args, cwd, serverId, customEnv = null) => {
   return new Promise((resolve, reject) => {
     // Use spawn directly with argument array (no shell)
-    const proc = spawn(command, args, { cwd, shell: false });
+    const spawnOptions = {
+      cwd,
+      shell: false,
+      env: customEnv || process.env
+    };
+    const proc = spawn(command, args, spawnOptions);
     
     proc.stdout.on('data', (data) => {
       const output = data.toString();
@@ -673,8 +702,90 @@ const runInstallCommandSafe = (command, args, cwd, serverId) => {
   });
 };
 
+// Helper function to handle Git operations for a server
+const handleGitOperations = async (serverId, serverConfig) => {
+  const serverPath = getServerPath(serverId);
+  const { gitRepo, gitBranch, gitUsername, gitAccessToken, autoUpdate, userUploadedFiles } = serverConfig;
+  
+  // Skip git operations if no repo configured or user uploaded files
+  if (!gitRepo || userUploadedFiles === 1) {
+    return;
+  }
+  
+  const gitLog = (message) => {
+    const logs = consoleOutputs.get(serverId) || [];
+    logs.push({ type: 'info', message: message + '\n', timestamp: new Date() });
+    consoleOutputs.set(serverId, logs);
+    io.emit(`console:${serverId}`, { type: 'info', message: message + '\n' });
+  };
+  
+  const gitPath = path.join(serverPath, '.git');
+  const hasGit = await fs.pathExists(gitPath);
+  
+  // Setup Git credential helper if username and token provided
+  let gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+  let credHelperPath = null;
+  
+  if (gitUsername && gitAccessToken) {
+    // Create a temporary credential helper script OUTSIDE the clone directory
+    const tmpDir = path.join(__dirname, '.tmp');
+    await fs.ensureDir(tmpDir);
+    credHelperPath = path.join(tmpDir, `git-cred-${serverId}.sh`);
+    
+    // Git askpass receives a prompt and should output just the credential value
+    // Escape single quotes in credentials to prevent script injection
+    const escapedUsername = gitUsername.replace(/'/g, "'\\''");
+    const escapedToken = gitAccessToken.replace(/'/g, "'\\''");
+    const credHelperScript = `#!/bin/sh
+case "$1" in
+  *Username*|*username*) echo '${escapedUsername}' ;;
+  *Password*|*password*) echo '${escapedToken}' ;;
+  *) echo '${escapedToken}' ;;
+esac`;
+    await fs.writeFile(credHelperPath, credHelperScript, { mode: 0o755 });
+    
+    // Set GIT_ASKPASS to use our credential helper
+    gitEnv.GIT_ASKPASS = credHelperPath;
+  }
+  
+  try {
+    if (!hasGit) {
+      // Clear directory before cloning (except .git if exists)
+      gitLog('[CodeX] Preparing directory for Git clone...');
+      const files = await fs.readdir(serverPath);
+      for (const file of files) {
+        if (file !== '.git') {
+          await fs.remove(path.join(serverPath, file));
+        }
+      }
+      
+      // Clone the repository using environment variables for credentials (secure)
+      gitLog('[CodeX] Cloning repository...');
+      const branch = gitBranch || 'main';
+      
+      // Clone with credentials passed via environment variables
+      await runInstallCommandSafe('git', ['clone', '-b', branch, gitRepo, '.'], serverPath, serverId, gitEnv);
+      
+      gitLog('[CodeX] Repository cloned successfully');
+    } else if (autoUpdate === 1) {
+      // Pull latest changes
+      gitLog('[CodeX] Updating from repository...');
+      
+      // Pull with credentials passed via environment variables
+      await runInstallCommandSafe('git', ['pull'], serverPath, serverId, gitEnv);
+      
+      gitLog('[CodeX] Repository updated successfully');
+    }
+  } finally {
+    // Clean up credential helper script
+    if (credHelperPath && await fs.pathExists(credHelperPath)) {
+      await fs.remove(credHelperPath);
+    }
+  }
+};
+
 // Helper function to start a server with smart startup logic
-const startServerWithSmartStartup = async (serverId, command, runtime, envVars = {}) => {
+const startServerWithSmartStartup = async (serverId, command, runtime, envVars = {}, serverConfig = {}) => {
   const serverPath = getServerPath(serverId);
   const packages = serverPackages.get(serverId) || [];
   
@@ -692,19 +803,25 @@ const startServerWithSmartStartup = async (serverId, command, runtime, envVars =
   
   // Run package installation steps first (synchronously)
   try {
+    // Handle Git operations first
+    await handleGitOperations(serverId, serverConfig);
+    
     if (runtime === 'nodejs' || runtime === 'bun') {
       // Check if package.json exists, create if needed
       const packageJsonPath = path.join(serverPath, 'package.json');
       let needsPackageJson = !await fs.pathExists(packageJsonPath);
       
       if (needsPackageJson) {
-        // Create basic package.json
+        // Create basic package.json with latest Node LTS compatibility
         const packageJson = {
           name: serverId,
           version: "1.0.0",
           type: "module",
           description: "Server managed by CodeX Hosting",
-          main: "index.js",
+          main: serverConfig.jsFile || "index.js",
+          engines: {
+            node: ">=16.0.0"
+          },
           dependencies: {}
         };
         await fs.writeJSON(packageJsonPath, packageJson, { spaces: 2 });
@@ -718,16 +835,38 @@ const startServerWithSmartStartup = async (serverId, command, runtime, envVars =
       
       const packageManager = runtime === 'bun' ? 'bun' : 'npm';
       const nodeModulesPath = path.join(serverPath, 'node_modules');
+      const packageLockPath = path.join(serverPath, 'package-lock.json');
       
       // Install base dependencies if node_modules doesn't exist
       if (!await fs.pathExists(nodeModulesPath)) {
-        const installLog = `[CodeX] Installing base dependencies...\n`;
+        const installLog = `[CodeX] Installing dependencies...\n`;
         const logs = consoleOutputs.get(serverId) || [];
         logs.push({ type: 'info', message: installLog, timestamp: new Date() });
         consoleOutputs.set(serverId, logs);
         io.emit(`console:${serverId}`, { type: 'info', message: installLog });
         
-        await runInstallCommand(`${packageManager} install`, serverPath, serverId);
+        // Use npm ci if package-lock.json exists (faster and more reliable)
+        // Otherwise use npm install with flags to prevent node-pre-gyp errors
+        const hasPackageLock = await fs.pathExists(packageLockPath);
+        if (hasPackageLock && packageManager === 'npm') {
+          // npm ci with flags to handle node-pre-gyp and permissions issues
+          await runInstallCommandSafe('npm', [
+            'ci',
+            '--prefer-offline',
+            '--no-audit',
+            '--unsafe-perm',
+            '--legacy-peer-deps'
+          ], serverPath, serverId);
+        } else {
+          // npm install with flags to handle node-pre-gyp and permissions issues
+          await runInstallCommandSafe(packageManager, [
+            'install',
+            '--prefer-offline',
+            '--unsafe-perm',
+            '--legacy-peer-deps',
+            '--no-audit'
+          ], serverPath, serverId);
+        }
       }
       
       // Install additional packages if specified
@@ -736,14 +875,20 @@ const startServerWithSmartStartup = async (serverId, command, runtime, envVars =
         const validatedPackages = packages.map(pkg => validatePackageName(pkg));
         
         const packagesStr = validatedPackages.join(' ');
-        const installLog = `[CodeX] Installing packages: ${packagesStr}\n`;
+        const installLog = `[CodeX] Installing additional packages: ${packagesStr}\n`;
         const logs = consoleOutputs.get(serverId) || [];
         logs.push({ type: 'info', message: installLog, timestamp: new Date() });
         consoleOutputs.set(serverId, logs);
         io.emit(`console:${serverId}`, { type: 'info', message: installLog });
         
-        // Use safe argument array instead of string concatenation
-        await runInstallCommandSafe(packageManager, ['install', ...validatedPackages], serverPath, serverId);
+        // Use safe argument array with flags to prevent node-pre-gyp errors
+        await runInstallCommandSafe(packageManager, [
+          'install',
+          '--prefer-offline',
+          '--unsafe-perm',
+          '--legacy-peer-deps',
+          ...validatedPackages
+        ], serverPath, serverId);
       }
     } else if (runtime === 'python' && packages.length > 0) {
       // Python package installation
@@ -769,7 +914,7 @@ const startServerWithSmartStartup = async (serverId, command, runtime, envVars =
     
   } catch (installError) {
     // Installation failed - reject immediately
-    throw new Error(`Package installation failed: ${installError.message}`);
+    throw new Error(`Setup failed: ${installError.message}`);
   }
   
   // Now start the actual process and monitor for readiness
@@ -885,8 +1030,10 @@ app.post('/api/server/start', async (req, res) => {
       return res.json({ success: false, error: 'Server is already running' });
     }
 
+    const servers = loadServers();
+    const server = servers.find(s => s.id === serverId) || { command, runtime };
     const envVars = environmentVariables.get(serverId) || {};
-    await startServerWithSmartStartup(serverId, command, runtime, envVars);
+    await startServerWithSmartStartup(serverId, server.command || command, server.runtime || runtime, envVars, server);
 
     res.json({ success: true, message: 'Server started successfully' });
   } catch (error) {
@@ -927,8 +1074,10 @@ app.post('/api/server/restart', async (req, res) => {
     }
 
     // Start again using smart startup
+    const servers = loadServers();
+    const server = servers.find(s => s.id === serverId) || { command, runtime };
     const envVars = environmentVariables.get(serverId) || {};
-    await startServerWithSmartStartup(serverId, command, runtime, envVars);
+    await startServerWithSmartStartup(serverId, server.command || command, server.runtime || runtime, envVars, server);
 
     res.json({ success: true, message: 'Server restarted successfully' });
   } catch (error) {
@@ -1023,6 +1172,68 @@ app.post('/api/console/exec', (req, res) => {
     });
     
     res.json({ success: true, message: 'Command executed' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Server Configuration Endpoints
+
+// Get server configuration
+app.get('/api/servers/:id/config', (req, res) => {
+  try {
+    const { id } = req.params;
+    const servers = loadServers();
+    const server = servers.find(s => s.id === id);
+    
+    if (!server) {
+      return res.status(404).json({ success: false, error: 'Server not found' });
+    }
+
+    const config = {
+      gitRepo: server.gitRepo || '',
+      gitBranch: server.gitBranch || '',
+      gitUsername: server.gitUsername || '',
+      gitAccessToken: server.gitAccessToken ? '***' : '',
+      userUploadedFiles: server.userUploadedFiles || 0,
+      autoUpdate: server.autoUpdate || 0,
+      jsFile: server.jsFile || 'index.js',
+      startupCommand: server.startupCommand || ''
+    };
+    
+    res.json({ success: true, config });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Save server configuration
+app.post('/api/servers/:id/config', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { gitRepo, gitBranch, gitUsername, gitAccessToken, userUploadedFiles, autoUpdate, jsFile, startupCommand } = req.body;
+    
+    const servers = loadServers();
+    const index = servers.findIndex(s => s.id === id);
+    
+    if (index === -1) {
+      return res.status(404).json({ success: false, error: 'Server not found' });
+    }
+
+    // Update configuration fields
+    if (gitRepo !== undefined) servers[index].gitRepo = gitRepo;
+    if (gitBranch !== undefined) servers[index].gitBranch = gitBranch;
+    if (gitUsername !== undefined) servers[index].gitUsername = gitUsername;
+    if (gitAccessToken !== undefined && gitAccessToken !== '***') servers[index].gitAccessToken = gitAccessToken;
+    if (userUploadedFiles !== undefined) servers[index].userUploadedFiles = userUploadedFiles;
+    if (autoUpdate !== undefined) servers[index].autoUpdate = autoUpdate;
+    if (jsFile !== undefined) servers[index].jsFile = jsFile;
+    if (startupCommand !== undefined) servers[index].startupCommand = startupCommand;
+    
+    servers[index].updatedAt = new Date().toISOString();
+    saveServers(servers);
+    
+    res.json({ success: true, message: 'Server configuration updated successfully', server: servers[index] });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
