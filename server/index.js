@@ -846,7 +846,7 @@ const startServerWithSmartStartup = async (serverId, command, runtime, envVars =
         io.emit(`console:${serverId}`, { type: 'info', message: installLog });
         
         // Use npm ci if package-lock.json exists (faster and more reliable)
-        // Otherwise use npm install with flags to prevent node-pre-gyp errors
+        // Otherwise use npm/bun install with appropriate flags
         const hasPackageLock = await fs.pathExists(packageLockPath);
         if (hasPackageLock && packageManager === 'npm') {
           // npm ci with flags to handle node-pre-gyp and permissions issues
@@ -857,9 +857,12 @@ const startServerWithSmartStartup = async (serverId, command, runtime, envVars =
             '--unsafe-perm',
             '--legacy-peer-deps'
           ], serverPath, serverId);
+        } else if (packageManager === 'bun') {
+          // bun install (doesn't support npm-specific flags)
+          await runInstallCommandSafe('bun', ['install'], serverPath, serverId);
         } else {
           // npm install with flags to handle node-pre-gyp and permissions issues
-          await runInstallCommandSafe(packageManager, [
+          await runInstallCommandSafe('npm', [
             'install',
             '--prefer-offline',
             '--unsafe-perm',
@@ -869,10 +872,48 @@ const startServerWithSmartStartup = async (serverId, command, runtime, envVars =
         }
       }
       
+      // Handle NODE_PACKAGES environment variable for automatic package installation
+      const nodePackages = envVars.NODE_PACKAGES || '';
+      const nodePackagesList = nodePackages.trim() ? nodePackages.trim().split(/\s+/) : [];
+      
+      // Handle UNNODE_PACKAGES environment variable for automatic package uninstallation
+      const unnodePackages = envVars.UNNODE_PACKAGES || '';
+      const unnodePackagesList = unnodePackages.trim() ? unnodePackages.trim().split(/\s+/) : [];
+      
+      // Uninstall packages first if specified
+      if (unnodePackagesList.length > 0) {
+        try {
+          // Validate all package names to prevent injection
+          const validatedPackages = unnodePackagesList.map(pkg => validatePackageName(pkg));
+          
+          const packagesStr = validatedPackages.join(' ');
+          const uninstallLog = `[CodeX] Uninstalling packages: ${packagesStr}\n`;
+          const logs = consoleOutputs.get(serverId) || [];
+          logs.push({ type: 'info', message: uninstallLog, timestamp: new Date() });
+          consoleOutputs.set(serverId, logs);
+          io.emit(`console:${serverId}`, { type: 'info', message: uninstallLog });
+          
+          // Use safe argument array
+          await runInstallCommandSafe(packageManager, [
+            'uninstall',
+            ...validatedPackages
+          ], serverPath, serverId);
+        } catch (error) {
+          const errorLog = `[CodeX] Warning: Failed to uninstall some packages: ${error.message}\n`;
+          const logs = consoleOutputs.get(serverId) || [];
+          logs.push({ type: 'stderr', message: errorLog, timestamp: new Date() });
+          consoleOutputs.set(serverId, logs);
+          io.emit(`console:${serverId}`, { type: 'stderr', message: errorLog });
+        }
+      }
+      
+      // Combine packages from packages list and NODE_PACKAGES env var
+      const allPackages = [...packages, ...nodePackagesList];
+      
       // Install additional packages if specified
-      if (packages.length > 0) {
+      if (allPackages.length > 0) {
         // Validate all package names
-        const validatedPackages = packages.map(pkg => validatePackageName(pkg));
+        const validatedPackages = allPackages.map(pkg => validatePackageName(pkg));
         
         const packagesStr = validatedPackages.join(' ');
         const installLog = `[CodeX] Installing additional packages: ${packagesStr}\n`;
@@ -881,14 +922,20 @@ const startServerWithSmartStartup = async (serverId, command, runtime, envVars =
         consoleOutputs.set(serverId, logs);
         io.emit(`console:${serverId}`, { type: 'info', message: installLog });
         
-        // Use safe argument array with flags to prevent node-pre-gyp errors
-        await runInstallCommandSafe(packageManager, [
-          'install',
-          '--prefer-offline',
-          '--unsafe-perm',
-          '--legacy-peer-deps',
-          ...validatedPackages
-        ], serverPath, serverId);
+        // Use safe argument array with appropriate flags for each package manager
+        if (packageManager === 'bun') {
+          // bun add for additional packages
+          await runInstallCommandSafe('bun', ['add', ...validatedPackages], serverPath, serverId);
+        } else {
+          // npm install with flags to prevent node-pre-gyp errors
+          await runInstallCommandSafe('npm', [
+            'install',
+            '--prefer-offline',
+            '--unsafe-perm',
+            '--legacy-peer-deps',
+            ...validatedPackages
+          ], serverPath, serverId);
+        }
       }
     } else if (runtime === 'python' && packages.length > 0) {
       // Python package installation
@@ -1127,6 +1174,50 @@ app.post('/api/console/command', (req, res) => {
   }
 });
 
+// Helper function to detect and track package installations from console commands
+const detectAndTrackPackages = (serverId, command) => {
+  // Detect npm/bun install commands
+  const installMatch = command.match(/^(?:npm|bun)\s+(?:install|i|add)\s+(.+)/);
+  if (installMatch) {
+    const packagesStr = installMatch[1];
+    // Parse package names (space-separated, excluding flags)
+    const packageNames = packagesStr.split(/\s+/).filter(pkg => 
+      pkg && !pkg.startsWith('-') && pkg !== 'install' && pkg !== 'i' && pkg !== 'add'
+    );
+    
+    if (packageNames.length > 0) {
+      const packages = serverPackages.get(serverId) || [];
+      const newPackages = packageNames.filter(pkg => {
+        try {
+          validatePackageName(pkg);
+          return !packages.includes(pkg);
+        } catch {
+          return false;
+        }
+      });
+      
+      if (newPackages.length > 0) {
+        serverPackages.set(serverId, [...packages, ...newPackages]);
+      }
+    }
+  }
+  
+  // Detect npm/bun uninstall commands
+  const uninstallMatch = command.match(/^(?:npm|bun)\s+(?:uninstall|remove|rm|un)\s+(.+)/);
+  if (uninstallMatch) {
+    const packagesStr = uninstallMatch[1];
+    const packageNames = packagesStr.split(/\s+/).filter(pkg => 
+      pkg && !pkg.startsWith('-')
+    );
+    
+    if (packageNames.length > 0) {
+      const packages = serverPackages.get(serverId) || [];
+      const filtered = packages.filter(pkg => !packageNames.includes(pkg));
+      serverPackages.set(serverId, filtered);
+    }
+  }
+};
+
 // Run shell command with environment variables (for console commands)
 app.post('/api/console/exec', (req, res) => {
   try {
@@ -1138,6 +1229,9 @@ app.post('/api/console/exec', (req, res) => {
 
     const serverPath = getServerPath(serverId);
     const envVars = environmentVariables.get(serverId) || {};
+    
+    // Detect and track package installations
+    detectAndTrackPackages(serverId, command.trim());
     
     // Merge env vars with process env
     const env = { ...process.env, ...envVars };
