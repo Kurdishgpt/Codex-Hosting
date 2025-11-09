@@ -182,12 +182,12 @@ const ServerStartup = () => {
   };
 
   const getDefaultCommand = () => {
-    if (!serverData) return 'node index.js';
+    if (!serverData) return 'if [[ -d .git ]] && [[ {{AUTO_UPDATE}} == "1" ]]; then git pull; fi; if [[ ! -z ${NODE_PACKAGES} ]]; then /usr/local/bin/npm install ${NODE_PACKAGES}; fi; if [[ ! -z ${UNNODE_PACKAGES} ]]; then /usr/local/bin/npm uninstall ${UNNODE_PACKAGES}; fi; if [ -f /home/container/package.json ]; then /usr/local/bin/npm install; fi; /usr/local/bin/node /home/container/{{JS_FILE}}';
     
     switch (serverData.runtime) {
       case 'nodejs':
       case 'bun':
-        return 'node index.js';
+        return 'if [[ -d .git ]] && [[ {{AUTO_UPDATE}} == "1" ]]; then git pull; fi; if [[ ! -z ${NODE_PACKAGES} ]]; then /usr/local/bin/npm install ${NODE_PACKAGES}; fi; if [[ ! -z ${UNNODE_PACKAGES} ]]; then /usr/local/bin/npm uninstall ${UNNODE_PACKAGES}; fi; if [ -f /home/container/package.json ]; then /usr/local/bin/npm install; fi; /usr/local/bin/node /home/container/{{JS_FILE}}';
       case 'python':
         return 'python main.py';
       case 'java':
@@ -199,17 +199,17 @@ const ServerStartup = () => {
       case 'lua':
         return 'lua main.lua';
       default:
-        return 'node index.js';
+        return 'if [[ -d .git ]] && [[ {{AUTO_UPDATE}} == "1" ]]; then git pull; fi; if [[ ! -z ${NODE_PACKAGES} ]]; then /usr/local/bin/npm install ${NODE_PACKAGES}; fi; if [[ ! -z ${UNNODE_PACKAGES} ]]; then /usr/local/bin/npm uninstall ${UNNODE_PACKAGES}; fi; if [ -f /home/container/package.json ]; then /usr/local/bin/npm install; fi; /usr/local/bin/node /home/container/{{JS_FILE}}';
     }
   };
 
   const runtimeExamples = {
     'nodejs': [
+      'if [[ -d .git ]] && [[ {{AUTO_UPDATE}} == "1" ]]; then git pull; fi; if [[ ! -z ${NODE_PACKAGES} ]]; then /usr/local/bin/npm install ${NODE_PACKAGES}; fi; if [[ ! -z ${UNNODE_PACKAGES} ]]; then /usr/local/bin/npm uninstall ${UNNODE_PACKAGES}; fi; if [ -f /home/container/package.json ]; then /usr/local/bin/npm install; fi; /usr/local/bin/node /home/container/{{JS_FILE}}',
       'node index.js',
       'npm start',
       'node src/bot.js',
-      'node --max-old-space-size=512 index.js',
-      'if [[ -d .git ]] && [[ 0 == "1" ]]; then git pull; fi; if [[ ! -z ${NODE_PACKAGES} ]]; then /usr/local/bin/npm install ${NODE_PACKAGES}; fi; if [[ ! -z ${UNNODE_PACKAGES} ]]; then /usr/local/bin/npm uninstall ${UNNODE_PACKAGES}; fi; if [ -f /home/container/package.json ]; then /usr/local/bin/npm install; fi; /usr/local/bin/node /home/container/index.js'
+      'node --max-old-space-size=512 index.js'
     ],
     'python': [
       'python main.py',
@@ -218,6 +218,7 @@ const ServerStartup = () => {
       'python src/app.py'
     ],
     'bun': [
+      'if [[ -d .git ]] && [[ {{AUTO_UPDATE}} == "1" ]]; then git pull; fi; if [[ ! -z ${NODE_PACKAGES} ]]; then /usr/local/bin/npm install ${NODE_PACKAGES}; fi; if [[ ! -z ${UNNODE_PACKAGES} ]]; then /usr/local/bin/npm uninstall ${UNNODE_PACKAGES}; fi; if [ -f /home/container/package.json ]; then /usr/local/bin/npm install; fi; /usr/local/bin/node /home/container/{{JS_FILE}}',
       'bun index.js',
       'bun run start',
       'bun run dev'
@@ -293,6 +294,28 @@ const ServerStartup = () => {
                 </p>
               </div>
 
+              <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-4 mb-4">
+                <h3 className="text-sm font-semibold mb-2 text-blue-200">Template Variables:</h3>
+                <div className="space-y-2 text-sm text-blue-100">
+                  <div className="flex items-start gap-2">
+                    <code className="bg-blue-950 px-2 py-1 rounded text-blue-300">{'{{AUTO_UPDATE}}'}</code>
+                    <span>Set to "1" in environment variables to enable Git auto-update on startup</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <code className="bg-blue-950 px-2 py-1 rounded text-blue-300">{'{{JS_FILE}}'}</code>
+                    <span>The main JavaScript file to run (e.g., index.js, bot.js, main.js)</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <code className="bg-blue-950 px-2 py-1 rounded text-blue-300">${'{NODE_PACKAGES}'}</code>
+                    <span>Packages to install automatically (set in environment variables)</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <code className="bg-blue-950 px-2 py-1 rounded text-blue-300">${'{UNNODE_PACKAGES}'}</code>
+                    <span>Packages to uninstall automatically (set in environment variables)</span>
+                  </div>
+                </div>
+              </div>
+
               <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-4 mb-4">
                 <h3 className="text-sm font-semibold mb-2 text-gray-300">Common Examples for {serverData?.runtime || 'Node.js'}:</h3>
                 <div className="space-y-2">
@@ -300,7 +323,7 @@ const ServerStartup = () => {
                     <button
                       key={index}
                       onClick={() => setStartupCommand(example)}
-                      className="block w-full text-left px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm font-mono text-gray-300 transition-colors"
+                      className="block w-full text-left px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm font-mono text-gray-300 transition-colors break-all"
                     >
                       {example}
                     </button>

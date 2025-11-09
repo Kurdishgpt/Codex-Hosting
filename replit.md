@@ -33,6 +33,10 @@ CodeX Hosting is a modern web application built with React and TypeScript that p
 - **Bun Compatibility**: Fixed package manager commands for Bun runtime to use correct flags
 - **Startup Command UI**: Added "Reset to Default" button in settings to easily remove custom startup commands and return to runtime-specific defaults
 - **Default Command Display**: Shows the default startup command for each runtime (Node.js, Python, Java, etc.) in the settings interface
+- **Template-Based Startup Command**: Default Node.js/Bun command now uses template with {{AUTO_UPDATE}} and {{JS_FILE}} variables for flexible configuration
+  - Template: `if [[ -d .git ]] && [[ {{AUTO_UPDATE}} == "1" ]]; then git pull; fi; if [[ ! -z ${NODE_PACKAGES} ]]; then /usr/local/bin/npm install ${NODE_PACKAGES}; fi; if [[ ! -z ${UNNODE_PACKAGES} ]]; then /usr/local/bin/npm uninstall ${UNNODE_PACKAGES}; fi; if [ -f /home/container/package.json ]; then /usr/local/bin/npm install; fi; /usr/local/bin/node /home/container/{{JS_FILE}}`
+  - Includes automatic Git pull, package management, and customizable file execution
+- **Template Variables Documentation**: Added UI explanation panel showing how to use {{AUTO_UPDATE}}, {{JS_FILE}}, ${NODE_PACKAGES}, and ${UNNODE_PACKAGES} variables
 
 ## User Preferences
 
