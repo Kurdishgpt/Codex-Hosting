@@ -277,7 +277,10 @@ const ServerStartup = () => {
               </div>
               
               <div className="mb-4">
-                <label className="block text-sm font-semibold mb-2">Command</label>
+                <label className="block text-sm font-semibold mb-2">
+                  Command 
+                  <span className="text-gray-400 font-normal ml-2">(Default: {getDefaultCommand()})</span>
+                </label>
                 <input
                   type="text"
                   value={startupCommand}
@@ -286,7 +289,7 @@ const ServerStartup = () => {
                   className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white font-mono focus:border-blue-500 focus:outline-none"
                 />
                 <p className="text-gray-400 text-sm mt-2">
-                  This command will be executed when your server starts. Make sure the file exists in your server directory.
+                  This command will be executed when your server starts. Click "Reset to Default" to use the default command for your runtime.
                 </p>
               </div>
 
@@ -305,14 +308,23 @@ const ServerStartup = () => {
                 </div>
               </div>
 
-              <button
-                onClick={handleSaveCommand}
-                disabled={saving || !startupCommand.trim()}
-                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Save size={20} />
-                {saving ? 'Saving...' : 'Save Startup Command'}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSaveCommand}
+                  disabled={saving || !startupCommand.trim()}
+                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Save size={20} />
+                  {saving ? 'Saving...' : 'Save Startup Command'}
+                </button>
+                <button
+                  onClick={() => setStartupCommand(getDefaultCommand())}
+                  className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <RotateCcw size={20} />
+                  Reset to Default
+                </button>
+              </div>
             </motion.div>
 
             {/* Environment Variables */}

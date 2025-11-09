@@ -25,6 +25,15 @@ CodeX Hosting is a modern web application built with React and TypeScript that p
 - **Consolidated Settings Page**: Merged server-settings.tsx into server-startup.tsx creating one comprehensive settings page with startup command, environment variables, server information, server details, background customization, reinstall, and delete server options
 - **Navigation Update**: Settings button now opens the unified settings page (/server/startup) and separate Startup nav item removed for cleaner navigation
 
+### Discord Bot Hosting Features (November 9, 2025)
+- **Automatic Package Management**: Added NODE_PACKAGES and UNNODE_PACKAGES environment variables for automatic package installation/uninstallation
+- **Console Package Detection**: Automatically tracks packages installed via console commands (npm install, bun add)
+- **Discord Bot Auto-Start**: Server automatically restarts when DISCORD_BOT_TOKEN or DISCORD_TOKEN environment variables are added
+- **Security Hardening**: Implemented package name validation to prevent command injection attacks
+- **Bun Compatibility**: Fixed package manager commands for Bun runtime to use correct flags
+- **Startup Command UI**: Added "Reset to Default" button in settings to easily remove custom startup commands and return to runtime-specific defaults
+- **Default Command Display**: Shows the default startup command for each runtime (Node.js, Python, Java, etc.) in the settings interface
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
